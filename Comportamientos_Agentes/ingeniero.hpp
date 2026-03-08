@@ -10,19 +10,6 @@
 
 #include "comportamientos/comportamiento.hpp"
 
-// =========================================================================
-// DOCUMENTACIÓN PARA ESTUDIANTES
-// =========================================================================
-/*
- * CLASE: ComportamientoIngeniero
- * 
- * DESCRIPCIÓN:
- * Esta clase implementa el comportamiento del agente Ingeniero en el mundo Belkan.
- * El ingeniero es responsable de explorar el mapa, encontrar objetivos y colaborar
- * con el técnico para resolver problemas.
- */
-
-
 class ComportamientoIngeniero : public Comportamiento {
 public:
   // =========================================================================
