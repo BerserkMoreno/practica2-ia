@@ -297,10 +297,10 @@ bool ComportamientoTecnico::EsCasillaTransitableLevel0(int f, int c, bool tieneZ
  * @param actual Estado actual del agente (fila, columna, orientacion).
  * @return true si el desnivel con la casilla de delante es admisible.
  */
-bool ComportamientoTecnico::EsAccesiblePorAltura(const estadoT &actual) {
-  estadoT del = Delante(actual);
-  if (del.fila < 0 || del.fila >= mapaCotas.size() || del.columna < 0 || del.columna >= mapaCotas[0].size()) return false;
-  int desnivel = abs(mapaCotas[del.fila][del.columna] - mapaCotas[actual.fila][actual.columna]);
+bool ComportamientoTecnico::EsAccesiblePorAltura(const ubicacion &actual) {
+  ubicacion del = Delante(actual);
+  if (del.f < 0 || del.f >= mapaCotas.size() || del.c < 0 || del.c >= mapaCotas[0].size()) return false;
+  int desnivel = abs(mapaCotas[del.f][del.c] - mapaCotas[actual.f][actual.c]);
   if (desnivel > 1) return false;
   return true;
 }
@@ -311,17 +311,17 @@ bool ComportamientoTecnico::EsAccesiblePorAltura(const estadoT &actual) {
  * @param actual Estado actual del agente (fila, columna, orientacion).
  * @return Estado con la fila y columna de la casilla de enfrente.
  */
-estadoT ComportamientoTecnico::Delante(const estadoT &actual) const {
-  estadoT delante = actual;
-  switch (actual.orientacion) {
-    case 0: delante.fila--; break;                        // norte
-    case 1: delante.fila--; delante.columna++; break;     // noreste
-    case 2: delante.columna++; break;                     // este
-    case 3: delante.fila++; delante.columna++; break;     // sureste
-    case 4: delante.fila++; break;                        // sur
-    case 5: delante.fila++; delante.columna--; break;     // suroeste
-    case 6: delante.columna--; break;                     // oeste
-    case 7: delante.fila--; delante.columna--; break;     // noroeste
+ubicacion ComportamientoTecnico::Delante(const ubicacion &actual) const {
+  ubicacion delante = actual;
+  switch (actual.brujula) {
+    case 0: delante.f--; break;                        // norte
+    case 1: delante.f--; delante.c++; break;     // noreste
+    case 2: delante.c++; break;                     // este
+    case 3: delante.f++; delante.c++; break;     // sureste
+    case 4: delante.f++; break;                        // sur
+    case 5: delante.f++; delante.c--; break;     // suroeste
+    case 6: delante.c--; break;                     // oeste
+    case 7: delante.f--; delante.c--; break;     // noroeste
   }
   return delante;
 }
@@ -379,13 +379,13 @@ void ComportamientoTecnico::PintaPlan(const list<Action> &plan)
  * @param st    Estado de partida.
  * @param plan  Lista de acciones del plan.
  */
-void ComportamientoTecnico::VisualizaPlan(const estadoT &st,
+void ComportamientoTecnico::VisualizaPlan(const ubicacion &st,
                                             const list<Action> &plan)
 {
-  listaPlanCasillas.clear();
-  estadoT cst = st;
+   listaPlanCasillas.clear();
+  ubicacion cst = st;
 
-  listaPlanCasillas.push_back({cst.fila, cst.columna, WALK});
+  listaPlanCasillas.push_back({cst.f, cst.c, WALK});
   auto it = plan.begin();
   while (it != plan.end())
   {
@@ -393,81 +393,81 @@ void ComportamientoTecnico::VisualizaPlan(const estadoT &st,
     switch (*it)
     {
     case JUMP:
-      switch (cst.orientacion)
+      switch (cst.brujula)
       {
       case 0:
-        cst.fila--;
+        cst.f--;
         break;
       case 1:
-        cst.fila--;
-        cst.columna++;
+        cst.f--;
+        cst.c++;
         break;
       case 2:
-        cst.columna++;
+        cst.c++;
         break;
       case 3:
-        cst.fila++;
-        cst.columna++;
+        cst.f++;
+        cst.c++;
         break;
       case 4:
-        cst.fila++;
+        cst.f++;
         break;
       case 5:
-        cst.fila++;
-        cst.columna--;
+        cst.f++;
+        cst.c--;
         break;
       case 6:
-        cst.columna--;
+        cst.c--;
         break;
       case 7:
-        cst.fila--;
-        cst.columna--;
+        cst.f--;
+        cst.c--;
         break;
       }
-      if (cst.fila >= 0 && cst.fila < mapaResultado.size() &&
-          cst.columna >= 0 && cst.columna < mapaResultado[0].size())
-        listaPlanCasillas.push_back({cst.fila, cst.columna, JUMP});
+      if (cst.f >= 0 && cst.f < mapaResultado.size() &&
+          cst.c >= 0 && cst.c < mapaResultado[0].size())
+        listaPlanCasillas.push_back({cst.f, cst.c, JUMP});
     case WALK:
-      switch (cst.orientacion)
+      switch (cst.brujula)
       {
       case 0:
-        cst.fila--;
+        cst.f--;
         break;
       case 1:
-        cst.fila--;
-        cst.columna++;
+        cst.f--;
+        cst.c++;
         break;
       case 2:
-        cst.columna++;
+        cst.c++;
         break;
       case 3:
-        cst.fila++;
-        cst.columna++;
+        cst.f++;
+        cst.c++;
         break;
       case 4:
-        cst.fila++;
+        cst.f++;
         break;
       case 5:
-        cst.fila++;
-        cst.columna--;
+        cst.f++;
+        cst.f--;
         break;
       case 6:
-        cst.columna--;
+        cst.c--;
         break;
       case 7:
-        cst.fila--;
-        cst.columna--;
+        cst.f--;
+        cst.c--;
         break;
       }
-      if (cst.fila >= 0 && cst.fila < mapaResultado.size() &&
-          cst.columna >= 0 && cst.columna < mapaResultado[0].size())
-        listaPlanCasillas.push_back({cst.fila, cst.columna, WALK});
+      if (cst.f >= 0 && cst.f < mapaResultado.size() &&
+          cst.c >= 0 && cst.c < mapaResultado[0].size())
+        listaPlanCasillas.push_back({cst.f, cst.c, WALK});
       break;
     case TURN_SR:
-      cst.orientacion = (cst.orientacion + 1) % 8;
+      cst.brujula = (Orientacion) (( (int) cst.brujula + 1) % 8);
       break;
     case TURN_SL:
-      cst.orientacion = (cst.orientacion + 7) % 8;
+      cst.brujula = (Orientacion) (( (int) cst.brujula + 7) % 8);
       break;
     }
     it++;

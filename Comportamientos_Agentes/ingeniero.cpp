@@ -322,15 +322,15 @@ bool ComportamientoIngeniero::EsCasillaTransitableLevel0(int f, int c, bool tien
  * @param actual Estado actual del agente (fila, columna, orientacion, zap).
  * @return true si el desnivel con la casilla de delante es admisible.
  */
-bool ComportamientoIngeniero::EsAccesiblePorAltura(const estadoI &actual)
+bool ComportamientoIngeniero::EsAccesiblePorAltura(const ubicacion &actual, bool zap)
 {
-  estadoI del = Delante(actual);
-  if (del.fila < 0 || del.fila >= mapaCotas.size() || del.columna < 0 || del.columna >= mapaCotas[0].size())
+  ubicacion del = Delante(actual);
+  if (del.f < 0 || del.f >= mapaCotas.size() || del.c < 0 || del.c >= mapaCotas[0].size())
     return false;
-  int desnivel = abs(mapaCotas[del.fila][del.columna] - mapaCotas[actual.fila][actual.columna]);
-  if (actual.zap && desnivel > 2)
+  int desnivel = abs(mapaCotas[del.f][del.c] - mapaCotas[actual.f][actual.c]);
+  if (zap && desnivel > 2)
     return false;
-  if (!actual.zap && desnivel > 1)
+  if (!zap && desnivel > 1)
     return false;
   return true;
 }
@@ -341,38 +341,38 @@ bool ComportamientoIngeniero::EsAccesiblePorAltura(const estadoI &actual)
  * @param actual Estado actual del agente (fila, columna, orientacion).
  * @return Estado con la fila y columna de la casilla de enfrente.
  */
-estadoI ComportamientoIngeniero::Delante(const estadoI &actual) const
+ubicacion ComportamientoIngeniero::Delante(const ubicacion &actual) const
 {
-  estadoI delante = actual;
-  switch (actual.orientacion)
+  ubicacion delante = actual;
+  switch (actual.brujula)
   {
   case 0:
-    delante.fila--;
+    delante.f--;
     break; // norte
   case 1:
-    delante.fila--;
-    delante.columna++;
+    delante.f--;
+    delante.c++;
     break; // noreste
   case 2:
-    delante.columna++;
+    delante.c++;
     break; // este
   case 3:
-    delante.fila++;
-    delante.columna++;
+    delante.f++;
+    delante.c++;
     break; // sureste
   case 4:
-    delante.fila++;
+    delante.f++;
     break; // sur
   case 5:
-    delante.fila++;
-    delante.columna--;
+    delante.f++;
+    delante.c--;
     break; // suroeste
   case 6:
-    delante.columna--;
+    delante.c--;
     break; // oeste
   case 7:
-    delante.fila--;
-    delante.columna--;
+    delante.f--;
+    delante.c--;
     break; // noroeste
   }
   return delante;
@@ -445,13 +445,13 @@ void ComportamientoIngeniero::PintaPlan(const list<Paso> &plan)
  * @param st    Estado de partida.
  * @param plan  Lista de acciones del plan.
  */
-void ComportamientoIngeniero::VisualizaPlan(const estadoI &st,
+void ComportamientoIngeniero::VisualizaPlan(const ubicacion &st,
                                             const list<Action> &plan)
 {
   listaPlanCasillas.clear();
-  estadoI cst = st;
+  ubicacion cst = st;
 
-  listaPlanCasillas.push_back({cst.fila, cst.columna, WALK});
+  listaPlanCasillas.push_back({cst.f, cst.c, WALK});
   auto it = plan.begin();
   while (it != plan.end())
   {
@@ -459,81 +459,81 @@ void ComportamientoIngeniero::VisualizaPlan(const estadoI &st,
     switch (*it)
     {
     case JUMP:
-      switch (cst.orientacion)
+      switch (cst.brujula)
       {
       case 0:
-        cst.fila--;
+        cst.f--;
         break;
       case 1:
-        cst.fila--;
-        cst.columna++;
+        cst.f--;
+        cst.c++;
         break;
       case 2:
-        cst.columna++;
+        cst.c++;
         break;
       case 3:
-        cst.fila++;
-        cst.columna++;
+        cst.f++;
+        cst.c++;
         break;
       case 4:
-        cst.fila++;
+        cst.f++;
         break;
       case 5:
-        cst.fila++;
-        cst.columna--;
+        cst.f++;
+        cst.c--;
         break;
       case 6:
-        cst.columna--;
+        cst.c--;
         break;
       case 7:
-        cst.fila--;
-        cst.columna--;
+        cst.f--;
+        cst.c--;
         break;
       }
-      if (cst.fila >= 0 && cst.fila < mapaResultado.size() &&
-          cst.columna >= 0 && cst.columna < mapaResultado[0].size())
-        listaPlanCasillas.push_back({cst.fila, cst.columna, JUMP});
+      if (cst.f >= 0 && cst.f < mapaResultado.size() &&
+          cst.c >= 0 && cst.c < mapaResultado[0].size())
+        listaPlanCasillas.push_back({cst.f, cst.c, JUMP});
     case WALK:
-      switch (cst.orientacion)
+      switch (cst.brujula)
       {
       case 0:
-        cst.fila--;
+        cst.f--;
         break;
       case 1:
-        cst.fila--;
-        cst.columna++;
+        cst.f--;
+        cst.c++;
         break;
       case 2:
-        cst.columna++;
+        cst.c++;
         break;
       case 3:
-        cst.fila++;
-        cst.columna++;
+        cst.f++;
+        cst.c++;
         break;
       case 4:
-        cst.fila++;
+        cst.f++;
         break;
       case 5:
-        cst.fila++;
-        cst.columna--;
+        cst.f++;
+        cst.f--;
         break;
       case 6:
-        cst.columna--;
+        cst.c--;
         break;
       case 7:
-        cst.fila--;
-        cst.columna--;
+        cst.f--;
+        cst.c--;
         break;
       }
-      if (cst.fila >= 0 && cst.fila < mapaResultado.size() &&
-          cst.columna >= 0 && cst.columna < mapaResultado[0].size())
-        listaPlanCasillas.push_back({cst.fila, cst.columna, WALK});
+      if (cst.f >= 0 && cst.f < mapaResultado.size() &&
+          cst.c >= 0 && cst.c < mapaResultado[0].size())
+        listaPlanCasillas.push_back({cst.f, cst.c, WALK});
       break;
     case TURN_SR:
-      cst.orientacion = (cst.orientacion + 1) % 8;
+      cst.brujula = (Orientacion) (( (int) cst.brujula + 1) % 8);
       break;
     case TURN_SL:
-      cst.orientacion = (cst.orientacion + 7) % 8;
+      cst.brujula = (Orientacion) (( (int) cst.brujula + 7) % 8);
       break;
     }
     it++;
@@ -547,8 +547,7 @@ void ComportamientoIngeniero::VisualizaPlan(const estadoI &st,
  * @param st    Estado de partida (no utilizado directamente).
  * @param plan  Lista de pasos del plan de tubería.
  */
-void ComportamientoIngeniero::VisualizaRedTuberias(const estadoI &st,
-                                                   const list<Paso> &plan)
+void ComportamientoIngeniero::VisualizaRedTuberias(const list<Paso> &plan)
 {
   listaCanalizacionTuberias.clear();
   auto it = plan.begin();

@@ -20,71 +20,7 @@
  * Esta clase implementa el comportamiento del agente Ingeniero en el mundo Belkan.
  * El ingeniero es responsable de explorar el mapa, encontrar objetivos y colaborar
  * con el técnico para resolver problemas.
- * 
- * NIVELES DE COMPORTAMIENTO:
- * - Nivel 0: Comportamiento reactivo básico (parcialmente implementado)
- * - Nivel 1: Comportamiento reactivo mejorado
- * - Nivel 2: Búsqueda de caminos con información completa
- * - Nivel 3: Búsqueda con información parcial
- * - Nivel 4: Planificación con múltiples objetivos
- * - Nivel 5: Colaboración básica con el técnico
- * - Nivel 6: Colaboración avanzada
- * 
- * SENSORES IMPORTANTES:
- * - sensores.superficie[0]: Tipo de terreno en la casilla actual
- * - sensores.superficie[2]: Tipo de terreno en la casilla de delante
- * - sensores.posF, sensores.posC: Posición actual (fila, columna)
- * - sensores.rumbo: Orientación actual (0=norte, 1=noreste, ..., 7=noroeste)
- * - sensores.cota[0]: Altura de la casilla actual
- * 
- * TIPOS DE TERRENO:
- * 'C' = Camino (transitable)
- * 'S' = Sendero (transitable)
- * 'D' = Zapatillas (objeto especial)
- * 'U' = Objetivo/Meta
- * 'B' = Bosque (transitable con zapatillas)
- * 'A' = Agua (no transitable)
- * 'P' = Precipicio (no transitable)
- * 'M' = Montaña (no transitable)
- * 'H' = Hierba (transitable con coste alto)
  */
-
-struct estadoI {
-  int fila;
-  int columna;
-  int orientacion;
-  bool zap;
-  bool operator<(const estadoI &n) const {
-    /* 
-     * TAREA DEL ESTUDIANTE: Redefinir el operador menor para usar estados en contenedores ordenados.
-     * Ejemplo: std::set<estadoI> o std::map<estadoI, valor>
-     * 
-     */
-    if (fila < n.fila) 
-      return true;
-    else
-      return false;
-  }
-  bool operator==(const estadoI &n) const {
-    return (fila == n.fila and columna == n.columna and
-            orientacion == n.orientacion and zap == n.zap);
-  }
-};
-
-struct ComparaEstadosI {
-  bool operator()(const estadoI &a, const estadoI &n) const {
-    /* 
-     * TAREA DEL ESTUDIANTE: Functor alternativo para comparar estados.
-     * Útil para colas de prioridad (priority_queue).
-     * 
-     */
-    if ((a.fila > n.fila))
-      return true;
-    else
-      return false;
-  }
-};
-
 
 
 class ComportamientoIngeniero : public Comportamiento {
@@ -212,14 +148,14 @@ protected:
    * @param actual Estado actual del agente (fila, columna, orientacion).
    * @return true si el desnivel con la casilla de delante es admisible.
    */
-  bool EsAccesiblePorAltura(const estadoI &actual);
+  bool EsAccesiblePorAltura(const ubicacion &actual, bool zap);
 
   /**
    * @brief Devuelve la posición (fila, columna) de la casilla que hay delante del agente.
    * @param actual Estado actual del agente (fila, columna, orientacion).
    * @return Estado con la fila y columna de la casilla de enfrente.
    */
-  estadoI Delante(const estadoI &actual) const;
+  ubicacion Delante(const ubicacion &actual) const;
 
   bool es_camino(unsigned char c) const;
 
@@ -243,7 +179,7 @@ protected:
  * @param st    Estado de partida.
  * @param plan  Lista de acciones del plan.
  */
-  void VisualizaPlan(const estadoI &st, const list<Action> &plan);
+  void VisualizaPlan(const ubicacion &st, const list<Action> &plan);
 
   /**
  * @brief Convierte un plan de tubería en la lista de casillas usada
@@ -251,7 +187,7 @@ protected:
  * @param st    Estado de partida (no utilizado directamente).
  * @param plan  Lista de pasos del plan de tubería.
  */
-  void VisualizaRedTuberias(const estadoI &st, const list<Paso> &plan);
+  void VisualizaRedTuberias(const list<Paso> &plan);
 
 
 

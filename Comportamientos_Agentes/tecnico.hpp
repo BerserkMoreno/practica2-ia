@@ -17,61 +17,8 @@
  * DESCRIPCIÓN:
  * Esta clase implementa el comportamiento del agente Técnico en el mundo Belkan.
  * El técnico colabora con el ingeniero para resolver el problema de instalación de tuberías
- * 
- * 
- * DIFERENCIAS CON EL INGENIERO:
- * - El técnico NO tiene capacidades especiales
- * - El técnico puede acceder al bosque cuando tiene las zapatillas
- * - Colabora con el ingeniero mediante comunicación (sensores.venpaca, sensores.enfrente)
- * 
- * ACCIONES ESPECIALES DEL TÉCNICO:
- * - INSTALL: Instalar tuberías o equipos
- * 
- * COMUNICACIÓN CON EL INGENIERO:
- * - sensores.venpaca: Indica que el ingeniero necesita al técnico
- * - sensores.enfrente: Indica que el ingeniero está enfrente (orientaciones opuestas)
- * - sensores.GotoF, sensores.GotoC: Coordenadas destino enviadas por el ingeniero
  */
 
-struct estadoT {
-  int fila;
-  int columna;
-  int orientacion;
-  bool zap;
-  bool operator<(const estadoT &n) const {
-    /* 
-     * TAREA DEL ESTUDIANTE: Redefinir el operador menor para usar estados en contenedores ordenados.
-     * Ejemplo: std::set<estadoT> o std::map<estadoT, valor>
-     * 
-     * PISTA: Un estado es "menor" que otro si alguna de sus componentes es menor,
-     * comparando en orden: fila, columna, orientacion, zap.
-     */
-    if (fila < n.fila) 
-      return true;
-    else
-      return false;
-  }
-  bool operator==(const estadoT &n) const {
-    return (fila == n.fila and columna == n.columna and
-            orientacion == n.orientacion and zap == n.zap);
-  }
-};
-
-struct ComparaEstadosT {
-  bool operator()(const estadoT &a, const estadoT &n) const {
-    /* 
-     * TAREA DEL ESTUDIANTE: Functor alternativo para comparar estados.
-     * Útil para colas de prioridad (priority_queue).
-     * 
-     * PISTA: En priority_queue, el elemento "más grande" según el comparador
-     * es el que tiene mayor prioridad (se saca primero).
-     */
-    if (a.fila > n.fila)
-      return true;
-    else
-      return false;
-  }
-};
 
 
 class ComportamientoTecnico : public Comportamiento {
@@ -198,14 +145,14 @@ protected:
    * @param actual Estado actual del agente (fila, columna, orientacion).
    * @return true si el desnivel con la casilla de delante es admisible.
    */
-  bool EsAccesiblePorAltura(const estadoT &actual);
+  bool EsAccesiblePorAltura(const ubicacion &actual);
 
   /**
    * @brief Devuelve la posición (fila, columna) de la casilla que hay delante del agente.
    * @param actual Estado actual del agente (fila, columna, orientacion).
    * @return Estado con la fila y columna de la casilla de enfrente.
    */
-  estadoT Delante(const estadoT &actual) const;
+  ubicacion Delante(const ubicacion &actual) const;
 
   /**
    * @brief Comprueba si una celda es de tipo transitable por defecto.
@@ -234,7 +181,7 @@ protected:
  * @param st    Estado de partida.
  * @param plan  Lista de acciones del plan.
  */
-  void VisualizaPlan(const estadoT &st, const list<Action> &plan);
+  void VisualizaPlan(const ubicacion &st, const list<Action> &plan);
 
 private:
   // =========================================================================
