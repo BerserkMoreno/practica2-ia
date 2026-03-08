@@ -187,7 +187,7 @@ unsigned int Entidad::getObjCol(int pos) {
  * @return Acción elegida por la entidad para este instante.
  */
 Action Entidad::think(int acc, vector<vector<unsigned char>> vision,
-                      int level) {
+                      int level, int impacto_eco) {
   Action accion = IDLE;
   Sensores sensor;
 
@@ -216,6 +216,7 @@ Action Entidad::think(int acc, vector<vector<unsigned char>> vision,
     sensor.posF = f;
     sensor.posC = c;
     sensor.rumbo = orient;
+    sensor.ecologico = impacto_eco;
 
     if (tipo == jugador) // Poner los sensores que se activan al jugador
     {

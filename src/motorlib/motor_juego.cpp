@@ -970,7 +970,7 @@ void nucleo_motor_juego(MonitorJuego &monitor, int acc) {
             monitor.get_entidad(0)->getFil(), monitor.get_entidad(0)->getCol(),
             monitor.get_entidad(1)->getFil(), monitor.get_entidad(1)->getCol());
         clock_t t0 = clock();
-        accion = monitor.get_entidad(0)->think(acc, estado[0], monitor.getLevel());
+        accion = monitor.get_entidad(0)->think(acc, estado[0], monitor.getLevel(), monitor.getImpactoEcologico());
         clock_t t1 = clock();
         monitor.get_entidad(0)->addTiempo(t1 - t0);
         monitor.get_entidad(0)->setLastAction(accion);
@@ -979,7 +979,7 @@ void nucleo_motor_juego(MonitorJuego &monitor, int acc) {
       }
     } else {
       clock_t t0 = clock();
-      accion = monitor.get_entidad(i)->think(acc, estado[i], monitor.getLevel());
+      accion = monitor.get_entidad(i)->think(acc, estado[i], monitor.getLevel(), monitor.getImpactoEcologico());
       clock_t t1 = clock();
       monitor.get_entidad(i)->addTiempo(t1 - t0);
       monitor.get_entidad(i)->setLastAction(accion);

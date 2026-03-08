@@ -67,6 +67,7 @@ struct Sensores {
                  // técnico y ambos tienen orientaciones opuestas
   int GotoF;     // Fila destino enviada por el ingeniero
   int GotoC;     // Columna destino enviada por el ingeniero
+  int ecologico; // Nivel de impacto ecológico provocado
 };
 
 class Comportamiento {
