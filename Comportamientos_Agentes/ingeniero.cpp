@@ -43,7 +43,15 @@ Action ComportamientoIngeniero::think(Sensores sensores)
   return accion;
 }
 
-int VeoCasillaInteresanteI(char i, char c, char d)
+char ViablePorAlturaI(char casilla, int dif, bool zap)
+{
+  if (abs(dif) <= 1 or (zap and abs(dif) <= 2))
+    return casilla;
+  else
+    return 'P';
+}
+
+int VeoCasillaInteresanteI(char i, char c, char d, bool zap)
 {
   if (c == 'U')
     return 2;
@@ -51,7 +59,17 @@ int VeoCasillaInteresanteI(char i, char c, char d)
     return 1;
   else if (d == 'U')
     return 3;
-  else if (c == 'C')
+  else if (!zap)
+  {
+    if (c == 'D')
+      return 2;
+    else if (i == 'D')
+      return 1;
+    else if (d == 'D')
+      return 3;
+  }
+
+  if (c == 'C')
     return 2;
   else if (i == 'C')
     return 1;
@@ -76,7 +94,11 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores
     return IDLE;
   }
 
-  int pos = VeoCasillaInteresanteI(sensores.superficie[1], sensores.superficie[2], sensores.superficie[3]);
+  char i = ViablePorAlturaI(sensores.superficie[1], sensores.cota[1] - sensores.cota[0], tiene_zapatillas);
+  char c = ViablePorAlturaI(sensores.superficie[2], sensores.cota[2] - sensores.cota[0], tiene_zapatillas);
+  char d = ViablePorAlturaI(sensores.superficie[3], sensores.cota[3] - sensores.cota[0], tiene_zapatillas);
+
+  int pos = VeoCasillaInteresanteI(i, c, d, tiene_zapatillas);
 
   switch (pos)
   {
