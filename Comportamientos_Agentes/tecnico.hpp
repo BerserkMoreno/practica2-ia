@@ -33,6 +33,7 @@ public:
    */
   ComportamientoTecnico(unsigned int size = 0) : Comportamiento(size) {
     // Inicializar Variables de Estado
+
   }
 
   /**
@@ -187,6 +188,7 @@ private:
   // =========================================================================
   // VARIABLES DE ESTADO (PUEDEN SER EXTENDIDAS POR EL ALUMNO)
   // =========================================================================
+ 
 
   
 };

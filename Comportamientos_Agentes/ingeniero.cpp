@@ -47,6 +47,24 @@ Action ComportamientoIngeniero::think(Sensores sensores)
 Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
 {
   Action accion = IDLE;
+
+  ActualizarMapa(sensores);
+
+  if(sensores.superficie[0]=='D') tiene_zapatillas = true;
+
+  if(sensores.superficie[0]=='U') {
+     return IDLE;
+  }else if(sensores.superficie[2]=='C'){
+    accion = WALK;
+  }else if(sensores.superficie[1]=='C'){
+    accion = TURN_SL;
+  }else if(sensores.superficie[3]=='C'){
+    accion = TURN_SR;
+  }else{
+    accion = TURN_SL;
+  }
+   
+  last_action = accion;
   return accion;
 }
 
