@@ -244,9 +244,10 @@ void MonitorJuego::put_active_objetivos(int number) {
  * @param[out] posCol   Columna del objetivo.
  */
 void MonitorJuego::get_n_active_objetivo(int n, int &posFila, int &posCol) {
-
-  posFila = objetivosActivos[0];
-  posCol = objetivosActivos[1];
+  if (2 * n + 1 < objetivosActivos.size()) {
+    posFila = objetivosActivos[2 * n];
+    posCol = objetivosActivos[2 * n + 1];
+  }
 }
 
 /**
@@ -258,12 +259,14 @@ void MonitorJuego::get_n_active_objetivo(int n, int &posFila, int &posCol) {
  * @param posCol   Nueva columna del objetivo.
  */
 void MonitorJuego::set_n_active_objetivo(int n, int posFila, int posCol) {
+  if (2 * n + 1 < objetivosActivos.size()) {
+    objetivosActivos[2 * n] = posFila;
+    objetivosActivos[2 * n + 1] = posCol;
+  }
 
-  objetivosActivos[0] = posFila;
-  objetivosActivos[1] = posCol;
-
-  if (numero_entidades() > 0)
-    get_entidad(0)->setObjetivos(objetivosActivos);
+  for (unsigned int i = 0; i < entidades.size(); i++) {
+    entidades[i]->setObjetivos(objetivosActivos);
+  }
 }
 
 /**

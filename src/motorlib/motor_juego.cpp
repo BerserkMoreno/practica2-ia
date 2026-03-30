@@ -77,6 +77,7 @@ bool actuacionIngeniero(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("Ingeniero", "Cayo al precipicio");
         monitor.get_entidad(0)->resetEntidad();
         monitor.get_entidad(0)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
         break;
@@ -191,6 +192,7 @@ bool actuacionIngeniero(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("Ingeniero", "Cayo al vacio (desnivel)");
         monitor.get_entidad(0)->resetEntidad();
         monitor.get_entidad(0)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
       }
@@ -228,6 +230,7 @@ bool actuacionIngeniero(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("Ingeniero", "Cayo al precipicio");
         monitor.get_entidad(0)->resetEntidad();
         monitor.get_entidad(0)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
         break;
@@ -334,6 +337,7 @@ bool actuacionIngeniero(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("       FIN DE LA SIMULACION\n");
         monitor.get_entidad(0)->resetEntidad();
         monitor.get_entidad(0)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
       }
@@ -634,6 +638,7 @@ bool actuacionTecnico(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("Tecnico", "Cayo al precipicio");
         monitor.get_entidad(1)->resetEntidad();
         monitor.get_entidad(1)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
         break;
@@ -679,6 +684,7 @@ bool actuacionTecnico(unsigned char celdaJ_inicial, unsigned char celdaJ_fin,
         monitor.addMensaje("Tecnico", "Cayo al vacio (desnivel)");
         monitor.get_entidad(1)->resetEntidad();
         monitor.get_entidad(1)->setHitbox(true);
+        monitor.setResetActivado(true);
         monitor.finalizarJuego();
         monitor.setMostrarResultados(true);
       }
@@ -1089,6 +1095,9 @@ void nucleo_motor_juego(MonitorJuego &monitor, int acc) {
   }
 
   case 1: // Termina cuando se agotan ciclos, tiempo o energía
+    if (monitor.finJuego())
+      monitor.setMostrarResultados(true);
+    break;
   case 2: // Termina cuando el Ingeniero llega al objetivo
   case 3: // Termina cuando el Técnico llega al objetivo
     break;
@@ -1148,11 +1157,15 @@ void ImprimirResultadosJuego(MonitorJuego &monitor) {
   // ── Niveles 0 y 1: Reconocimiento ─────────────────────────────────────────
   case 0:
   case 1: {
-    bool exito = monitor.get_entidad(0)->vivo() &&
-                 monitor.get_entidad(1)->vivo() &&
-                 monitor.get_entidad(0)->getBateria() > 0 &&
-                 monitor.get_entidad(1)->getBateria() > 0 &&
-                 (nivel == 0 || monitor.getImpactoEcologico() < monitor.getMaxImpacto());
+    bool exito;
+    if (nivel == 0) {
+      exito = monitor.get_entidad(0)->vivo() &&
+              monitor.get_entidad(1)->vivo() &&
+              monitor.get_entidad(0)->getBateria() > 0 &&
+              monitor.get_entidad(1)->getBateria() > 0;
+    } else {
+      exito = !monitor.getResetActivado();
+    }
     ss << "Nivel " << nivel << (exito ? " completado con Exito!" : " NO completado.");
     flush();
     ss << "Energia Ingeniero: " << monitor.get_entidad(0)->getBateria();

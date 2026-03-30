@@ -90,6 +90,7 @@ int main(int argc, char **argv)
     srand(argumentos.semilla);
     monitor.setMaxImpacto(argumentos.eco_impact_threshold);
     monitor.setEnergiaInicial(argumentos.initial_energy);
+    monitor.setInstantesInicial(argumentos.max_instantes);
     monitor.startGame(argumentos.level, argumentos.max_instantes);
 
     ifstream ifile;
@@ -148,10 +149,10 @@ int main(int argc, char **argv)
     monitor.inicializar(argumentos.posInicialIngeniero.f, argumentos.posInicialIngeniero.c, argumentos.posInicialIngeniero.brujula, argumentos.posInicialTecnico.f, argumentos.posInicialTecnico.c, argumentos.posInicialTecnico.brujula, argumentos.semilla);
     
     monitor.get_entidad(0)->setOrientacion(argumentos.posInicialIngeniero.brujula);
-    monitor.get_entidad(0)->setBateria(3000);
+    monitor.get_entidad(0)->setBateria(argumentos.initial_energy);
     
     monitor.get_entidad(1)->setOrientacion(argumentos.posInicialTecnico.brujula);
-    monitor.get_entidad(1)->setBateria(3000);
+    monitor.get_entidad(1)->setBateria(argumentos.initial_energy);
     
     monitor.setPasos(argumentos.max_instantes);
     monitor.setRetardo(0);
