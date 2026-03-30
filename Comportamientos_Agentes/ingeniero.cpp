@@ -43,6 +43,24 @@ Action ComportamientoIngeniero::think(Sensores sensores)
   return accion;
 }
 
+int VeoCasillaInteresanteI(char i, char c, char d)
+{
+  if (c == 'U')
+    return 2;
+  else if (i == 'U')
+    return 1;
+  else if (d == 'U')
+    return 3;
+  else if (c == 'C')
+    return 2;
+  else if (i == 'C')
+    return 1;
+  else if (d == 'C')
+    return 3;
+  else
+    return 0;
+}
+
 // Niveles iniciales (Comportamientos reactivos simples)
 Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
 {
@@ -50,20 +68,32 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores
 
   ActualizarMapa(sensores);
 
-  if(sensores.superficie[0]=='D') tiene_zapatillas = true;
+  if (sensores.superficie[0] == 'D')
+    tiene_zapatillas = true;
 
-  if(sensores.superficie[0]=='U') {
-     return IDLE;
-  }else if(sensores.superficie[2]=='C'){
-    accion = WALK;
-  }else if(sensores.superficie[1]=='C'){
-    accion = TURN_SL;
-  }else if(sensores.superficie[3]=='C'){
-    accion = TURN_SR;
-  }else{
-    accion = TURN_SL;
+  if (sensores.superficie[0] == 'U')
+  {
+    return IDLE;
   }
-   
+
+  int pos = VeoCasillaInteresanteI(sensores.superficie[1], sensores.superficie[2], sensores.superficie[3]);
+
+  switch (pos)
+  {
+  case 2:
+    accion = WALK;
+    break;
+  case 1:
+    accion = TURN_SL;
+    break;
+  case 3:
+    accion = TURN_SR;
+    break;
+  default:
+    accion = TURN_SL;
+    break;
+  }
+
   last_action = accion;
   return accion;
 }
@@ -548,10 +578,10 @@ void ComportamientoIngeniero::VisualizaPlan(const ubicacion &st,
         listaPlanCasillas.push_back({cst.f, cst.c, WALK});
       break;
     case TURN_SR:
-      cst.brujula = (Orientacion) (( (int) cst.brujula + 1) % 8);
+      cst.brujula = (Orientacion)(((int)cst.brujula + 1) % 8);
       break;
     case TURN_SL:
-      cst.brujula = (Orientacion) (( (int) cst.brujula + 7) % 8);
+      cst.brujula = (Orientacion)(((int)cst.brujula + 7) % 8);
       break;
     }
     it++;
