@@ -187,11 +187,11 @@ private:
   // VARIABLES DE ESTADO (PUEDEN SER EXTENDIDAS POR EL ALUMNO)
   // =========================================================================
 
-  //Prueba de variables se puede io debe borrar 
+  
   Action last_action;
   bool tiene_zapatillas;
   int giro45Izq;
-  //Prueba de variables se puede io debe borrar 
+  
 
 };
 
