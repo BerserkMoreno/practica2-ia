@@ -82,6 +82,16 @@ Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
   if (sensores.superficie[0] == 'U')
     return IDLE;
 
+
+
+//Solucionar choque 
+  if (sensores.agentes[2] == 'i') {
+      accion = IDLE;
+      last_action = accion;
+      return accion;
+  }
+
+
   char i = ViablePorAlturaT(sensores.superficie[1], sensores.cota[1] - sensores.cota[0]);
   char c = ViablePorAlturaT(sensores.superficie[2], sensores.cota[2] - sensores.cota[0]);
   char d = ViablePorAlturaT(sensores.superficie[3], sensores.cota[3] - sensores.cota[0]);

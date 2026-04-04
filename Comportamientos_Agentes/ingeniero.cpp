@@ -94,9 +94,17 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores
     return IDLE;
   }
 
+
   char i = ViablePorAlturaI(sensores.superficie[1], sensores.cota[1] - sensores.cota[0], tiene_zapatillas);
   char c = ViablePorAlturaI(sensores.superficie[2], sensores.cota[2] - sensores.cota[0], tiene_zapatillas);
   char d = ViablePorAlturaI(sensores.superficie[3], sensores.cota[3] - sensores.cota[0], tiene_zapatillas);
+
+
+
+  if (sensores.agentes[1] == 't') i = 'P';
+  if (sensores.agentes[2] == 't') c = 'P';
+  if (sensores.agentes[3] == 't') d = 'P';
+
 
   int pos = VeoCasillaInteresanteI(i, c, d, tiene_zapatillas);
 
