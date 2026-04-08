@@ -134,9 +134,77 @@ bool ComportamientoTecnico::es_camino(unsigned char c) const
  * @param sensores Datos actuales de los sensores.
  * @return Acción a realizar.
  */
+
+
+int VeoCasillaInteresanteNivel1T(char i, char c, char d, bool zap)
+{
+  // Prioridad 1: Frente (c)
+  if (c == 'C' || c == 'S' || c == 'D' || c == 'U' || (zap && c == 'B'))
+    return 2;
+  // Prioridad 2: Izquierda (i)
+  else if (i == 'C' || i == 'S' || i == 'D' || i == 'U' || (zap && i == 'B'))
+    return 1;
+  // Prioridad 3: Derecha (d)
+  else if (d == 'C' || d == 'S' || d == 'D' || d == 'U' || (zap && d == 'B'))
+    return 3;
+  // Si no hay nada, 0
+  else
+    return 0;
+}
+
+
+
 Action ComportamientoTecnico::ComportamientoTecnicoNivel_1(Sensores sensores)
 {
-  return IDLE;
+  Action accion = IDLE;
+
+  // 1. Dibujar el mapa
+  ActualizarMapa(sensores);
+
+  // 2. Recoger zapatillas
+  if (sensores.superficie[0] == 'D') {
+    tiene_zapatillas = true;
+  }
+
+  // 3. Mecanismo de supervivencia al choque
+  if (sensores.choque) {
+    accion = TURN_SR;
+    last_action = accion;
+    return accion;
+  }
+
+  // 4. Comprobar alturas usando la función del Nivel 0 del técnico
+  // Recordatorio: el técnico NUNCA usa zapatillas para saltar más alto, solo para los bosques
+  char i = ViablePorAlturaT(sensores.superficie[1], sensores.cota[1] - sensores.cota[0]);
+  char c = ViablePorAlturaT(sensores.superficie[2], sensores.cota[2] - sensores.cota[0]);
+  char d = ViablePorAlturaT(sensores.superficie[3], sensores.cota[3] - sensores.cota[0]);
+
+  // 5. Evitar colisiones con compañeros
+  if (sensores.agentes[1] != '_') i = 'P';
+  if (sensores.agentes[2] != '_') c = 'P';
+  if (sensores.agentes[3] != '_') d = 'P';
+
+  // 6. Decidir mejor dirección (¡pasando la variable de las zapatillas!)
+  int pos = VeoCasillaInteresanteNivel1T(i, c, d, tiene_zapatillas);
+
+  switch (pos)
+  {
+  case 2:
+    accion = WALK;
+    break;
+  case 1:
+    accion = TURN_SL;
+    break;
+  case 3:
+    accion = TURN_SR;
+    break;
+  default:
+    accion = TURN_SR;
+    break;
+  }
+
+  last_action = accion;
+  return accion;
 }
 
 /**

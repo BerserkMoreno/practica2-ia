@@ -143,10 +143,82 @@ bool ComportamientoIngeniero::es_camino(unsigned char c) const
  * @param sensores Datos actuales de los sensores.
  * @return Acción a realizar.
  */
+
+
+
+int VeoCasillaInteresanteNivel1I(char i, char c, char d)
+{
+  // Prioridad 1: Seguir de frente (c) si es Camino, Sendero, Zapatilla o Meta
+  if (c == 'C' || c == 'S' || c == 'D' || c == 'U')
+    return 2;
+  // Prioridad 2: Mirar a la izquierda (i)
+  else if (i == 'C' || i == 'S' || i == 'D' || i == 'U')
+    return 1;
+  // Prioridad 3: Mirar a la derecha (d)
+  else if (d == 'C' || d == 'S' || d == 'D' || d == 'U')
+    return 3;
+  // Si no hay nada interesante a la vista, devolvemos 0
+  else
+    return 0;
+}
+
+
+
 Action ComportamientoIngeniero::ComportamientoIngenieroNivel_1(Sensores sensores)
 {
-  // TODO: Implementar comportamiento reactivo para el Nivel 1.
-  return IDLE;
+  Action accion = IDLE;
+
+  // 1. Dibujar el mapa en la memoria (súper importante para la nota)
+  ActualizarMapa(sensores);
+
+  // 2. Comprobar si hemos pisado unas zapatillas
+  if (sensores.superficie[0] == 'D') {
+    tiene_zapatillas = true;
+  }
+
+  // 3. Mecanismo de supervivencia: si chocamos, giramos a la derecha para salir
+  if (sensores.choque) {
+    accion = TURN_SR;
+    last_action = accion;
+    return accion;
+  }
+
+  // 4. Usar la función de altura del Nivel 0. Nos devuelve la letra del suelo 
+  // si podemos pasar, o una 'P' (precipicio) si es muy alto/bajo.
+  char i = ViablePorAlturaI(sensores.superficie[1], sensores.cota[1] - sensores.cota[0], tiene_zapatillas);
+  char c = ViablePorAlturaI(sensores.superficie[2], sensores.cota[2] - sensores.cota[0], tiene_zapatillas);
+  char d = ViablePorAlturaI(sensores.superficie[3], sensores.cota[3] - sensores.cota[0], tiene_zapatillas);
+
+  // 5. Comprobar que no nos chocamos con NADIE. 
+  // '_' significa vacio. Si hay cualquier otra letra, engañamos al agente
+  // poniéndole una 'P' para que no pise a su compañero.
+  if (sensores.agentes[1] != '_') i = 'P';
+  if (sensores.agentes[2] != '_') c = 'P';
+  if (sensores.agentes[3] != '_') d = 'P';
+
+  // 6. Decidir la mejor dirección
+  int pos = VeoCasillaInteresanteNivel1I(i, c, d);
+
+  switch (pos)
+  {
+  case 2:
+    accion = WALK;
+    break;
+  case 1:
+    accion = TURN_SL;
+    break;
+  case 3:
+    accion = TURN_SR;
+    break;
+  default:
+    // Si no vemos ningún camino (pos == 0), giramos a la derecha.
+    // Esto hará que giremos sobre nosotros mismos hasta ver un camino nuevo.
+    accion = TURN_SR;
+    break;
+  }
+
+  last_action = accion;
+  return accion;
 }
 
 // Niveles avanzados (Uso de búsqueda)
