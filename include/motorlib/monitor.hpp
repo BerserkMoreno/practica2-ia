@@ -249,6 +249,7 @@ public:
   }
   bool checkPipeConnection(int startF, int startC);
   bool checkLevel4();
+  int calcularImpactoPlan(const ListaCasillasPlan &plan);
 
   void addFailedAction(int f, int c, int duration = 2) {
     visualMarkers.push_back({f, c, duration, 0});

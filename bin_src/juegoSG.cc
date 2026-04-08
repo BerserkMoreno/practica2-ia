@@ -1,3 +1,4 @@
+// Bugfix: Energia inicial hardcodeada solucionada
 #include "motorlib.hpp"
 #include <fstream>
 
