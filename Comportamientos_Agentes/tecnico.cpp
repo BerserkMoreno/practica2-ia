@@ -50,6 +50,7 @@ char ViablePorAlturaT(char casilla, int dif)
   else
     return 'P';
 }
+/*ANTIGUA
 
 int VeoCasillaInteresanteT(char i, char c, char d)
 {
@@ -69,9 +70,135 @@ int VeoCasillaInteresanteT(char i, char c, char d)
     return 0;
 }
 
+*/
+
+
+// Devuelve las visitas de una casilla de forma segura sin salirse de la matriz
+int ObtenerVisitasSeguroT(int f, int c, const vector<vector<int>>& matrizVisitas)
+{
+  if (f >= 0 && f < matrizVisitas.size() && c >= 0 && c < matrizVisitas[0].size()) {
+    return matrizVisitas[f][c];
+  }
+  return 9999; 
+}
+
+// Función auxiliar para darle una nota a cada casilla específica del TÉCNICO
+int PuntuacionCasillaT(char terreno, int visitas, bool tiene_zap)
+{
+  if (terreno == 'P') return -9999; // Precipicios o compañeros prohibidos
+  
+  int puntos = 0;
+  if (terreno == 'U') puntos = 10000; 
+  else if (terreno == 'D' && !tiene_zap) puntos = 5000; 
+  else if (terreno == 'C' || terreno == 'S' || (terreno == 'D' && tiene_zap)) puntos = 1000; 
+  // LA GRAN DIFERENCIA DEL TÉCNICO: Si tiene zapatillas, el Bosque ('B') es un camino válido
+  else if (terreno == 'B' && tiene_zap) puntos = 1000; 
+  else return -9999; // Resto de terrenos (Agua, Muros, o Bosque sin zapatillas)
+
+  // Restamos atractivo por cada visita
+  puntos -= (visitas * 100); 
+  
+  return puntos;
+}
+
+// Evaluamos frente, izquierda y derecha
+int VeoCasillaInteresanteT(char i, char c, char d, int vi, int vc, int vd, bool zap)
+{
+  int score_i = PuntuacionCasillaT(i, vi, zap);
+  int score_c = PuntuacionCasillaT(c, vc, zap);
+  int score_d = PuntuacionCasillaT(d, vd, zap);
+
+  // Si todas son inviables, girar
+  if (score_i == -9999 && score_c == -9999 && score_d == -9999) return 0;
+
+  // Prioridad: Mayor puntuación. Desempate: Frente > Izquierda > Derecha
+  if (score_c >= score_i && score_c >= score_d) return 2;
+  if (score_i >= score_d) return 1;
+  return 3;
+}
+
+
+
+
+
+Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
+{
+  Action accion = IDLE;
+  ActualizarMapa(sensores);
+
+  // 1. Apuntamos en nuestra memoria que hemos pisado esta casilla
+  mapaVisitas[sensores.posF][sensores.posC]++;
+
+  if (sensores.superficie[0] == 'D')
+    tiene_zapatillas = true;
+
+  if (sensores.superficie[0] == 'U')
+    return IDLE; // Objetivo conseguido
+
+  // 2. Altura (Recordemos: ViablePorAlturaT del técnico solo permite desniveles <= 1 SIEMPRE)
+  char i = ViablePorAlturaT(sensores.superficie[1], sensores.cota[1] - sensores.cota[0]);
+  char c = ViablePorAlturaT(sensores.superficie[2], sensores.cota[2] - sensores.cota[0]);
+  char d = ViablePorAlturaT(sensores.superficie[3], sensores.cota[3] - sensores.cota[0]);
+
+  // 3. Evitar atropellar al Ingeniero ('i') tratándolo como precipicio
+  if (sensores.agentes[1] == 'i') i = 'P';
+  if (sensores.agentes[2] == 'i') c = 'P';
+  if (sensores.agentes[3] == 'i') d = 'P';
+
+  // 4. Calcular coordenadas exactas de las casillas Izq, Frente y Der
+  ubicacion actual;
+  actual.f = sensores.posF;
+  actual.c = sensores.posC;
+  actual.brujula = (Orientacion)sensores.rumbo;
+
+  ubicacion izq = actual;
+  izq.brujula = (Orientacion)((actual.brujula + 7) % 8); 
+  ubicacion c_izq = Delante(izq);
+
+  ubicacion cen = actual;
+  ubicacion c_cen = Delante(cen);
+
+  ubicacion der = actual;
+  der.brujula = (Orientacion)((actual.brujula + 1) % 8); 
+  ubicacion c_der = Delante(der);
+
+  // 5. Mirar mapa de visitas en esas coordenadas
+  int vi = ObtenerVisitasSeguroT(c_izq.f, c_izq.c, mapaVisitas);
+  int vc = ObtenerVisitasSeguroT(c_cen.f, c_cen.c, mapaVisitas);
+  int vd = ObtenerVisitasSeguroT(c_der.f, c_der.c, mapaVisitas);
+
+  // 6. Decidir la mejor dirección (Añadimos 'tiene_zapatillas' para que sepa si puede pisar Bosques)
+  int pos = VeoCasillaInteresanteT(i, c, d, vi, vc, vd, tiene_zapatillas);
+
+  switch (pos)
+  {
+  case 2:
+    accion = WALK;
+    break;
+  case 1:
+    accion = TURN_SL;
+    break;
+  case 3:
+    accion = TURN_SR;
+    break;
+  default:
+    // Si no hay salida, giramos a la izquierda para darnos la vuelta poco a poco
+    accion = TURN_SL;
+    break;
+  }
+
+  last_action = accion;
+  return accion;
+}
+
+
+
+
+/*ANTIGUO
 // Niveles del técnico
 Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
 {
+  
   Action accion = IDLE;
 
   ActualizarMapa(sensores);
@@ -118,6 +245,14 @@ Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
   last_action = accion;
   return accion;
 }
+
+*/
+
+
+
+
+
+
 
 /**
  * @brief Comprueba si una celda es de tipo camino transitable.

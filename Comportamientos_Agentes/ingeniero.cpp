@@ -50,7 +50,7 @@ char ViablePorAlturaI(char casilla, int dif, bool zap)
   else
     return 'P';
 }
-
+/* VeoCasillaInteresanteI del pdf tutorial lvl0
 int VeoCasillaInteresanteI(char i, char c, char d, bool zap)
 {
   if (c == 'U')
@@ -78,11 +78,129 @@ int VeoCasillaInteresanteI(char i, char c, char d, bool zap)
   else
     return 0;
 }
+*/
 
-// Niveles iniciales (Comportamientos reactivos simples)
+
+// Devuelve las visitas de una casilla de forma segura sin salirse de la matriz
+int ObtenerVisitasSeguro(int f, int c, const vector<vector<int>>& matrizVisitas)
+{
+  if (f >= 0 && f < matrizVisitas.size() && c >= 0 && c < matrizVisitas[0].size()) {
+    return matrizVisitas[f][c];
+  }
+  return 9999; // Si se sale del mapa, devolvemos un número gigante para que no quiera ir ahí
+}
+
+// Función auxiliar para darle una nota a cada casilla (El cerebro reactivo)
+int PuntuacionCasilla(char terreno, int visitas, bool zap_necesaria)
+{
+  if (terreno == 'P') return -9999; // Precipicio, compañero o desnivel insalvable
+  
+  int puntos = 0;
+  if (terreno == 'U') puntos = 10000; // La meta absoluta
+  else if (terreno == 'D' && !zap_necesaria) puntos = 5000; // ¡Zapatillas!
+  else if (terreno == 'C' || terreno == 'S' || (terreno == 'D' && zap_necesaria)) puntos = 1000; // Transitable normal
+  else return -9999; // Muros, agua o árboles (si somos ingeniero)
+
+  // La magia: le restamos atractivo por cada vez que la hemos pisado
+  puntos -= (visitas * 100); 
+  
+  return puntos;
+}
+
+// Evaluamos frente, izquierda y derecha devolviendo 1 (izq), 2 (frente), 3 (der) o 0 (nada)
+int VeoCasillaInteresanteI(char i, char c, char d, int vi, int vc, int vd, bool zap)
+{
+  int score_i = PuntuacionCasilla(i, vi, zap);
+  int score_c = PuntuacionCasilla(c, vc, zap);
+  int score_d = PuntuacionCasilla(d, vd, zap);
+
+  // Si todas son malas, girar
+  if (score_i == -9999 && score_c == -9999 && score_d == -9999) return 0;
+
+  // Priorizamos la mayor puntuación (en caso de empate, frente > izq > der)
+  if (score_c >= score_i && score_c >= score_d) return 2;
+  if (score_i >= score_d) return 1;
+  return 3;
+}
+
 Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
 {
   Action accion = IDLE;
+  ActualizarMapa(sensores);
+
+  // 1. Apuntamos en nuestra memoria que hemos pisado esta casilla (Aumentamos visitas)
+  mapaVisitas[sensores.posF][sensores.posC]++;
+
+  if (sensores.superficie[0] == 'D')
+    tiene_zapatillas = true;
+
+  if (sensores.superficie[0] == 'U') {
+    return IDLE; // Nivel completado
+  }
+
+  // 2. Extraer viabilidad por altura (terreno vs precipicio 'P')
+  char i = ViablePorAlturaI(sensores.superficie[1], sensores.cota[1] - sensores.cota[0], tiene_zapatillas);
+  char c = ViablePorAlturaI(sensores.superficie[2], sensores.cota[2] - sensores.cota[0], tiene_zapatillas);
+  char d = ViablePorAlturaI(sensores.superficie[3], sensores.cota[3] - sensores.cota[0], tiene_zapatillas);
+
+  // 3. Prevenir atropellar al técnico (si lo vemos de frente/lados, es un obstáculo)
+  if (sensores.agentes[1] == 't') i = 'P';
+  if (sensores.agentes[2] == 't') c = 'P';
+  if (sensores.agentes[3] == 't') d = 'P';
+
+  // 4. Calcular coordenadas exactas de las casillas a mi Izq, Frente y Der
+  ubicacion actual;
+  actual.f = sensores.posF;
+  actual.c = sensores.posC;
+  actual.brujula = (Orientacion)sensores.rumbo;
+
+  ubicacion izq = actual;
+  izq.brujula = (Orientacion)((actual.brujula + 7) % 8); 
+  ubicacion c_izq = Delante(izq);
+
+  ubicacion cen = actual;
+  ubicacion c_cen = Delante(cen);
+
+  ubicacion der = actual;
+  der.brujula = (Orientacion)((actual.brujula + 1) % 8); 
+  ubicacion c_der = Delante(der);
+
+  // 5. Mirar nuestro "mapa de visitas" en esas coordenadas
+  int vi = ObtenerVisitasSeguro(c_izq.f, c_izq.c, mapaVisitas);
+  int vc = ObtenerVisitasSeguro(c_cen.f, c_cen.c, mapaVisitas);
+  int vd = ObtenerVisitasSeguro(c_der.f, c_der.c, mapaVisitas);
+
+  // 6. Decidir la mejor dirección combinando Terreno + Visitas
+  int pos = VeoCasillaInteresanteI(i, c, d, vi, vc, vd, tiene_zapatillas);
+
+  switch (pos)
+  {
+  case 2:
+    accion = WALK;
+    break;
+  case 1:
+    accion = TURN_SL;
+    break;
+  case 3:
+    accion = TURN_SR;
+    break;
+  default:
+    // Si estamos atrapados o todo es muro/precipicio, giramos
+    accion = TURN_SL;
+    break;
+  }
+
+  last_action = accion;
+  return accion;
+}
+
+
+/*
+// Niveles iniciales (Comportamientos reactivos simples)  ANTIGUO
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
+{
+ 
+ Action accion = IDLE;
 
   ActualizarMapa(sensores);
 
@@ -126,7 +244,15 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores
 
   last_action = accion;
   return accion;
+  
 }
+
+
+*/
+
+
+
+
 
 /**
  * @brief Comprueba si una celda es de tipo camino transitable.
