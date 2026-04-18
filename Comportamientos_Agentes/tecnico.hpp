@@ -37,6 +37,8 @@ public:
     tiene_zapatillas = false;
     giro45Izq = 0;
 
+     instanteActual = 0; 
+
     mapaVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
   }
 
@@ -196,6 +198,15 @@ private:
   int giro45Izq;
 
   vector<vector<int>> mapaVisitas;
+
+    void RegistrarVisitaT(ubicacion actual);
+    bool EsCaminoLimpioT(ubicacion destino, int idx_sensor, const Sensores& sensores);
+    bool SePuedeCaminarT(ubicacion origen, int idx_sensor, const Sensores& sensores);
+    int EvaluarLadoT(ubicacion origen, int idx_sensor, const Sensores& sensores);
+
+       int instanteActual; // El "reloj" del robot
+    vector<vector<int>> mapaUltimoPaso; // Guarda el instante de la última visita
+  
 };
 
 #endif

@@ -43,13 +43,543 @@ Action ComportamientoIngeniero::think(Sensores sensores)
   return accion;
 }
 
-char ViablePorAlturaI(char casilla, int dif, bool zap)
-{
-  if (abs(dif) <= 1 or (zap and abs(dif) <= 2))
-    return casilla;
-  else
-    return 'P';
+
+
+/**
+ * @brief Guarda el momento exacto (instante) en el que pisamos esta casilla.
+ */
+void ComportamientoIngeniero::RegistrarPasoEnElReloj(ubicacion actual) {
+  
+    mapaUltimoPaso[actual.f][actual.c] = instanteActual;
 }
+
+/**
+ * @brief Comprueba si una casilla es suelo firme y no hay nadie estorbando.
+ */
+bool ComportamientoIngeniero::EsCasillaDespejada(ubicacion destino, int idx_sensor, const Sensores& sensores) {
+
+
+  
+    // Usamos la función de la UGR para ver si el suelo es 'C', 'D' o 'U'
+    if (!EsCasillaTransitableLevel0(destino.f, destino.c, tiene_zapatillas)) return false;
+    
+    // Miramos si hay un aldeano o el técnico en esa casilla
+    if (sensores.agentes[idx_sensor] != '_') return false; //Con esto marcamos que la casilla esta desocupada _ por tanto miramos si no esta desocupada
+    
+    return true;
+}
+
+/**
+ * @brief Evalúa si el Ingeniero puede avanzar un paso (WALK).
+ */
+bool ComportamientoIngeniero::SePuedeCaminar(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+    ubicacion destino = Delante(origen);
+
+    if (!EsCasillaDespejada(destino, idx_sensor, sensores)) return false;
+    
+    // Comprobamos ley de altura (1 o 2 dependiendo de zapatillas)
+    if (!EsAccesiblePorAltura(origen, tiene_zapatillas)) return false;
+
+    return true;
+}
+
+/**
+ * @brief Evalúa si el Ingeniero puede dar un salto largo (JUMP).
+ */
+bool ComportamientoIngeniero::SePuedeSaltar(ubicacion origen, int idx_intermedio, int idx_destino, const Sensores& sensores) {
+    ubicacion ubi_intermedia = Delante(origen);
+    ubicacion ubi_destino = Delante(ubi_intermedia);
+
+    // 1. Casilla intermedia: pisable, vacía y no más alta que nosotros
+    if (!EsCasillaDespejada(ubi_intermedia, idx_intermedio, sensores)) return false;
+    if (mapaCotas[ubi_intermedia.f][ubi_intermedia.c] > mapaCotas[origen.f][origen.c]) return false;
+
+    // 2. Casilla destino: pisable y vacía
+    if (!EsCasillaDespejada(ubi_destino, idx_destino, sensores)) return false;
+    
+    // 3. Altura final
+    int desnivel = abs(mapaCotas[ubi_destino.f][ubi_destino.c] - mapaCotas[origen.f][origen.c]);
+    int max_salto = tiene_zapatillas ? 2 : 1;
+    
+    return (desnivel <= max_salto);
+}
+
+// =========================================================================
+// 2. LÓGICA DE PUNTUACIÓN (¿Qué camino me gusta más?)
+// =========================================================================
+
+/**
+ * @brief Calcula el interés de una casilla basándose en la "frescura" (hace cuánto no vamos).
+ */
+int ComportamientoIngeniero::CalcularInteres(ubicacion ubi_destino, char terreno) {
+    int puntos = 1000; // Nota base (más alta para manejar mejor las restas)
+
+    if (terreno == 'U') puntos += 10000;
+    else if (terreno == 'D' && !tiene_zapatillas) puntos += 5000;
+    
+    // LÓGICA DE INSTANTES: Restamos el instante de la última visita.
+    // Una casilla visitada en el paso 10 restará solo 10 (Puntos altos = Interesante).
+    // Una casilla visitada en el paso 500 restará 500 (Puntos bajos = Aburrida).
+    puntos -= mapaUltimoPaso[ubi_destino.f][ubi_destino.c];
+    
+    return puntos;
+}
+
+/**
+ * @brief Compara en una dirección si es mejor Caminar o Saltar.
+ */
+void ComportamientoIngeniero::EvaluarRuta(ubicacion mirada, int idx_W, int idx_J, const Sensores& sensores, int& mejor_puntos, bool& debo_saltar) {
+    mejor_puntos = -999999;
+    debo_saltar = false;
+
+    ubicacion ubi_cerca = Delante(mirada);
+    ubicacion ubi_lejos = Delante(ubi_cerca);
+
+    int puntos_W = -999999;
+    int puntos_J = -999999;
+
+    if (SePuedeCaminar(mirada, idx_W, sensores)) {
+        puntos_W = CalcularInteres(ubi_cerca, sensores.superficie[idx_W]);
+    }
+
+    if (SePuedeSaltar(mirada, idx_W, idx_J, sensores)) {
+        puntos_J = CalcularInteres(ubi_lejos, sensores.superficie[idx_J]);
+        
+        // Si nunca hemos pisado la casilla intermedia, penalizamos el salto para explorar.
+        if (mapaUltimoPaso[ubi_cerca.f][ubi_cerca.c] == 0) puntos_J -= 200;
+        else puntos_J += 50; 
+    }
+
+    if (puntos_J > puntos_W) {
+        mejor_puntos = puntos_J;
+        debo_saltar = true;
+    } else {
+        mejor_puntos = puntos_W;
+        debo_saltar = false;
+    }
+}
+
+// =========================================================================
+// 3. CEREBRO PRINCIPAL
+// =========================================================================
+
+
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
+{
+    instanteActual++; // El tiempo vuela
+    ActualizarMapa(sensores);
+    
+    ubicacion yo = {sensores.posF, sensores.posC, sensores.rumbo};
+    RegistrarPasoEnElReloj(yo);
+
+    if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+    if (sensores.superficie[0] == 'U') return IDLE;
+
+    // Miradas virtuales
+    ubicacion frente = yo;
+    ubicacion izq = yo; izq.brujula = (Orientacion)((yo.brujula + 7) % 8);
+    ubicacion der = yo; der.brujula = (Orientacion)((yo.brujula + 1) % 8);
+
+    // Evaluamos las 3 direcciones
+    int pts_F, pts_I, pts_D;
+    bool saltar_F, saltar_I, saltar_D;
+
+    EvaluarRuta(frente, 2, 6, sensores, pts_F, saltar_F);
+    EvaluarRuta(izq,    1, 4, sensores, pts_I, saltar_I);
+    EvaluarRuta(der,    3, 8, sensores, pts_D, saltar_D);
+
+    // Torneo de puntuaciones
+    int ganador = pts_F;
+    if (pts_I > ganador) ganador = pts_I;
+    if (pts_D > ganador) ganador = pts_D;
+
+    // Decisión final
+    if (ganador <= -999999) return TURN_SL;
+
+    if (ganador == pts_F) return saltar_F ? JUMP : WALK;
+    if (ganador == pts_I) return TURN_SL;
+    
+    return TURN_SR;
+}
+
+
+/*Antiguo 16 Niveles El tecnico le roba casilla
+void ComportamientoIngeniero::RegistrarVisita(ubicacion actual) {
+    if (mapaVisitas.empty()) {
+        mapaVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+    }
+    mapaVisitas[actual.f][actual.c]++;
+}
+
+
+bool ComportamientoIngeniero::EsCaminoLimpio(ubicacion destino, int idx_sensor, const Sensores& sensores) {
+    // Usamos tu función proporcionada para ver si es 'C', 'D' o 'U'
+    if (!EsCasillaTransitableLevel0(destino.f, destino.c, tiene_zapatillas)) return false;
+    
+    // Comprobamos que no haya obstáculos móviles ('t' aldeano o 'i' ingeniero)
+    if (sensores.agentes[idx_sensor] != '_') return false;
+    
+    return true;
+}
+
+
+bool ComportamientoIngeniero::SePuedeCaminar(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+    ubicacion destino = Delante(origen); // Función proporcionada
+
+    if (!EsCaminoLimpio(destino, idx_sensor, sensores)) return false;
+    
+    // Usamos tu función proporcionada para comprobar las reglas estrictas de altura
+    if (!EsAccesiblePorAltura(origen, tiene_zapatillas)) return false;
+
+    return true;
+}
+
+
+bool ComportamientoIngeniero::SePuedeSaltar(ubicacion origen, int idx_int, int idx_dest, const Sensores& sensores) {
+    ubicacion intermedia = Delante(origen);
+    ubicacion destino = Delante(intermedia);
+
+    // 1. La casilla que sobrevolamos debe ser transitable, vacía y no ser un muro alto
+    if (!EsCaminoLimpio(intermedia, idx_int, sensores)) return false;
+    if (mapaCotas[intermedia.f][intermedia.c] > mapaCotas[origen.f][origen.c]) return false; // Chocaríamos
+
+    // 2. La casilla donde aterrizamos debe ser transitable, vacía y el desnivel total legal
+    if (!EsCaminoLimpio(destino, idx_dest, sensores)) return false;
+    
+    int desnivel_total = abs(mapaCotas[destino.f][destino.c] - mapaCotas[origen.f][origen.c]);
+    int limite_altura = tiene_zapatillas ? 2 : 1;
+    if (desnivel_total > limite_altura) return false;
+
+    return true;
+}
+
+
+int ComportamientoIngeniero::PuntuarOpcion(ubicacion destino, char terreno) {
+    int puntos = 100; // Valor base por ser un camino
+
+    if (terreno == 'U') puntos = 10000;
+    else if (terreno == 'D' && !tiene_zapatillas) puntos = 5000;
+    
+    // Restamos 15 puntos por cada vez que hayamos pasado por aquí
+    if (destino.f >= 0 && destino.f < mapaVisitas.size() && destino.c >= 0 && destino.c < mapaVisitas[0].size()) {
+        puntos -= (mapaVisitas[destino.f][destino.c] * 15);
+    }
+    
+    return puntos;
+}
+
+
+void ComportamientoIngeniero::EvaluarLado(ubicacion origen, int idx_walk, int idx_jump, const Sensores& sensores, int& mejor_nota, bool& prefiere_saltar) {
+    mejor_nota = -9999;
+    prefiere_saltar = false;
+
+    ubicacion ubi_walk = Delante(origen);
+    ubicacion ubi_jump = Delante(ubi_walk);
+
+    int puntos_caminar = -9999;
+    int puntos_saltar = -9999;
+
+    if (SePuedeCaminar(origen, idx_walk, sensores)) {
+        puntos_caminar = PuntuarOpcion(ubi_walk, sensores.superficie[idx_walk]);
+    }
+
+    if (SePuedeSaltar(origen, idx_walk, idx_jump, sensores)) {
+        puntos_saltar = PuntuarOpcion(ubi_jump, sensores.superficie[idx_jump]);
+        
+        // Estrategia: ¿Conviene saltar?
+        // Si el suelo que vamos a saltar no lo hemos pisado NUNCA, preferimos caminar para explorarlo.
+        if (mapaVisitas[ubi_walk.f][ubi_walk.c] == 0) puntos_saltar -= 200;
+        else puntos_saltar += 50; // Si ya lo pisamos, preferimos saltar para ir más rápido
+    }
+
+    if (puntos_saltar > puntos_caminar) {
+        mejor_nota = puntos_saltar;
+        prefiere_saltar = true;
+    } else {
+        mejor_nota = puntos_caminar;
+        prefiere_saltar = false;
+    }
+}
+
+
+// =========================================================================
+// 2. EL CEREBRO PRINCIPAL
+// =========================================================================
+
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
+{
+    // 1. Actualizar Entorno y Memoria
+    ActualizarMapa(sensores); // Función proporcionada por la UGR
+    
+    ubicacion posicion_actual = {sensores.posF, sensores.posC, sensores.rumbo};
+    RegistrarVisita(posicion_actual);
+
+    // 2. Actualizar Objetivos
+    if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+    if (sensores.superficie[0] == 'U') return IDLE; // Victoria
+
+    // 3. Crear coordenadas "virtuales" apuntando hacia donde miran nuestros sensores
+    ubicacion mirar_frente = posicion_actual;
+    
+    ubicacion mirar_izq = posicion_actual; 
+    mirar_izq.brujula = (Orientacion)((posicion_actual.brujula + 7) % 8); // Girar -45 grados
+    
+    ubicacion mirar_der = posicion_actual; 
+    mirar_der.brujula = (Orientacion)((posicion_actual.brujula + 1) % 8); // Girar +45 grados
+
+    // 4. Evaluar las 3 direcciones (Frontal, Izquierda, Derecha)
+    int nota_frente, nota_izq, nota_der;
+    bool salta_frente, salta_izq, salta_der;
+
+    // Pasamos el índice del sensor de caminar y el del salto
+    EvaluarLado(mirar_frente, 2, 6, sensores, nota_frente, salta_frente);
+    EvaluarLado(mirar_izq,    1, 4, sensores, nota_izq,    salta_izq);
+    EvaluarLado(mirar_der,    3, 8, sensores, nota_der,    salta_der);
+
+    // 5. Comparar notas y decidir la mejor acción
+    int ganador = nota_frente;
+    if (nota_izq > ganador) ganador = nota_izq;
+    if (nota_der > ganador) ganador = nota_der;
+
+    Action accion_elegida = IDLE;
+
+    if (ganador <= -9999) {
+        // Bloqueo total: Giramos a la izquierda para escanear nuevas áreas
+        accion_elegida = TURN_SL;
+    } 
+    else if (ganador == nota_frente) {
+        // El camino recto es el mejor
+        accion_elegida = salta_frente ? JUMP : WALK;
+    } 
+    else if (ganador == nota_izq) {
+        // Es mejor ir por la izquierda (giramos primero)
+        accion_elegida = TURN_SL;
+    } 
+    else {
+        // Es mejor ir por la derecha (giramos primero)
+        accion_elegida = TURN_SR;
+    }
+
+    last_action = accion_elegida;
+    return accion_elegida;
+}
+*/
+
+
+
+
+/*
+//17 NIVEELS PASADOS 
+
+// =========================================================================
+// FUNCIONES AUXILIARES PARA EL NIVEL 0 
+// =========================================================================
+
+
+static bool EsAccesibleWalk(const Sensores& sensores, int dest_idx, bool zap) {
+    char sup = sensores.superficie[dest_idx];
+    char ag = sensores.agentes[dest_idx];
+    int cota_origen = sensores.cota[0];
+    int cota_dest = sensores.cota[dest_idx];
+
+    // Transitable y sin obstaculos
+    if (sup != 'C' && sup != 'D' && sup != 'U') return false;
+    if (ag == 't' || ag == 'i') return false;
+    
+    // Reglas de altura
+    int dif = abs(cota_dest - cota_origen);
+    if (zap) return dif <= 2;
+    return dif <= 1;
+}
+
+
+static bool EsAccesibleJump(const Sensores& sensores, int int_idx, int dest_idx, bool zap) {
+    char sup_int = sensores.superficie[int_idx];
+    char ag_int = sensores.agentes[int_idx];
+    int cota_int = sensores.cota[int_idx];
+
+    char sup_dest = sensores.superficie[dest_idx];
+    char ag_dest = sensores.agentes[dest_idx];
+    int cota_origen = sensores.cota[0];
+    int cota_dest = sensores.cota[dest_idx];
+
+    // Reglas de la casilla intermedia (Debe ser transitable, libre y no superar la altura origen)
+    if (sup_int != 'C' && sup_int != 'D' && sup_int != 'U') return false;
+    if (ag_int != '_') return false;
+    if (cota_int > cota_origen) return false;
+
+    // Reglas de la casilla destino
+    if (sup_dest != 'C' && sup_dest != 'D' && sup_dest != 'U') return false;
+    if (ag_dest != '_') return false; 
+    
+    // Desnivel hasta el destino
+    int dif = abs(cota_dest - cota_origen);
+    if (zap) return dif <= 2;
+    return dif <= 1;
+}
+
+
+static float PuntuacionCasilla(int idx, const ubicacion& ub, const Sensores& sensores, const vector<vector<int> >& mapaVisitas, bool zap) {
+    // Si la ubicación se sale de nuestro mapa conocido (por seguridad)
+    if (ub.f < 0 || ub.f >= (int)mapaVisitas.size() || ub.c < 0 || ub.c >= (int)mapaVisitas[0].size()) {
+        return -9999.0f;
+    }
+    
+    char sup = sensores.superficie[idx];
+    float valor = 100.0f; // Puntuación base
+    
+    // Preferencias fuertes
+    if (sup == 'U') valor = 10000.0f;
+    else if (sup == 'D' && !zap) valor = 5000.0f;
+    
+    // Penalizamos las veces que hayamos pisado esa casilla para forzar la exploración
+    valor -= (mapaVisitas[ub.f][ub.c] * 15.0f);
+    
+    return valor;
+}
+
+
+
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
+{
+  ActualizarMapa(sensores);
+
+  // Asegurarnos de que mapaVisitas tiene el tamaño adecuado para evitar errores
+  if (mapaVisitas.empty() || mapaVisitas.size() != mapaResultado.size() || mapaVisitas[0].size() != mapaResultado[0].size()) {
+      mapaVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+  }
+
+  // Registramos que hemos estado en la casilla actual
+  mapaVisitas[sensores.posF][sensores.posC]++;
+
+  if (sensores.superficie[0] == 'D')
+    tiene_zapatillas = true;
+
+  if (sensores.superficie[0] == 'U')
+    return IDLE; // Objetivo conseguido, nos quedamos quietos
+
+  // --- 1. Calcular Coordenadas (ubicacion) de los índices de visión clave ---
+  ubicacion ub_0 = {sensores.posF, sensores.posC, sensores.rumbo};
+  
+  // Línea Central (Índices 2 y 6)
+  ubicacion ub_2 = Delante(ub_0);
+  ubicacion ub_6 = Delante(ub_2);
+  
+  // Línea Izquierda (Índices 1 y 4)
+  ubicacion ub_izq_dir = ub_0; 
+  ub_izq_dir.brujula = (Orientacion)((ub_0.brujula + 7) % 8); // Girar -45 grados (izq)
+  ubicacion ub_1 = Delante(ub_izq_dir);
+  ubicacion ub_4 = Delante(ub_1);
+  
+  // Línea Derecha (Índices 3 y 8)
+  ubicacion ub_der_dir = ub_0;
+  ub_der_dir.brujula = (Orientacion)((ub_0.brujula + 1) % 8); // Girar +45 grados (der)
+  ubicacion ub_3 = Delante(ub_der_dir);
+  ubicacion ub_8 = Delante(ub_3);
+
+  // --- 2. Evaluar opciones en cada dirección ---
+
+  // Evaluación de la ruta FRENTE (Centro)
+  float score_W2 = -9999.0f;
+  if (EsAccesibleWalk(sensores, 2, tiene_zapatillas)) score_W2 = PuntuacionCasilla(2, ub_2, sensores, mapaVisitas, tiene_zapatillas);
+  
+  float score_J6 = -9999.0f;
+  if (EsAccesibleJump(sensores, 2, 6, tiene_zapatillas)) {
+      score_J6 = PuntuacionCasilla(6, ub_6, sensores, mapaVisitas, tiene_zapatillas);
+      // Lógica de Exploración: Si la casilla 2 no se ha pisado nunca, preferimos caminar.
+      if (mapaVisitas[ub_2.f][ub_2.c] == 0) score_J6 -= 200.0f;
+      else score_J6 += 50.0f; // Si ya se pisó, premiamos saltar para ahorrar tiempo.
+  }
+
+  // Evaluación de la ruta IZQUIERDA
+  float score_W1 = -9999.0f;
+  if (EsAccesibleWalk(sensores, 1, tiene_zapatillas)) score_W1 = PuntuacionCasilla(1, ub_1, sensores, mapaVisitas, tiene_zapatillas);
+  
+  float score_J4 = -9999.0f;
+  if (EsAccesibleJump(sensores, 1, 4, tiene_zapatillas)) {
+      score_J4 = PuntuacionCasilla(4, ub_4, sensores, mapaVisitas, tiene_zapatillas);
+      if (mapaVisitas[ub_1.f][ub_1.c] == 0) score_J4 -= 200.0f;
+      else score_J4 += 50.0f;
+  }
+
+  // Evaluación de la ruta DERECHA
+  float score_W3 = -9999.0f;
+  if (EsAccesibleWalk(sensores, 3, tiene_zapatillas)) score_W3 = PuntuacionCasilla(3, ub_3, sensores, mapaVisitas, tiene_zapatillas);
+  
+  float score_J8 = -9999.0f;
+  if (EsAccesibleJump(sensores, 3, 8, tiene_zapatillas)) {
+      score_J8 = PuntuacionCasilla(8, ub_8, sensores, mapaVisitas, tiene_zapatillas);
+      if (mapaVisitas[ub_3.f][ub_3.c] == 0) score_J8 -= 200.0f;
+      else score_J8 += 50.0f;
+  }
+
+  // --- 3. Encontrar la mejor dirección general ---
+  float max_frente = (score_W2 > score_J6) ? score_W2 : score_J6;
+  float max_izq    = (score_W1 > score_J4) ? score_W1 : score_J4;
+  float max_der    = (score_W3 > score_J8) ? score_W3 : score_J8;
+
+  float max_overall = max_frente;
+  if (max_izq > max_overall) max_overall = max_izq;
+  if (max_der > max_overall) max_overall = max_der;
+
+  // --- 4. Tomar decisión final ---
+  Action accion = IDLE;
+
+  if (max_overall <= -9999.0f) {
+      // Callejón sin salida aparente o ruta bloqueada, rotamos para explorar nueva visión
+      accion = TURN_SL; 
+  } else if (max_overall == max_frente) {
+      // El mejor camino está directamente delante de nosotros
+      if (score_J6 > score_W2) accion = JUMP;
+      else accion = WALK;
+  } else if (max_overall == max_izq) {
+      // El mejor camino está a la izquierda, rotamos primero
+      accion = TURN_SL;
+  } else {
+      // El mejor camino está a la derecha, rotamos primero
+      accion = TURN_SR;
+  }
+
+  last_action = accion;
+  return accion;
+}
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* VeoCasillaInteresanteI del pdf tutorial lvl0
 int VeoCasillaInteresanteI(char i, char c, char d, bool zap)
 {
@@ -81,14 +611,57 @@ int VeoCasillaInteresanteI(char i, char c, char d, bool zap)
 */
 
 
-// Devuelve las visitas de una casilla de forma segura sin salirse de la matriz
-int ObtenerVisitasSeguro(int f, int c, const vector<vector<int>>& matrizVisitas)
-{
-  if (f >= 0 && f < matrizVisitas.size() && c >= 0 && c < matrizVisitas[0].size()) {
-    return matrizVisitas[f][c];
+
+
+/*
+
+
+bool PuedoSaltar(Sensores sensores) {
+  // 1. Necesitamos saber la posición de la casilla a distancia 1 y distancia 2
+  ubicacion actual = {sensores.posF, sensores.posC, (Orientacion)sensores.rumbo};
+  
+  ubicacion casilla1 = Delante(actual);
+  ubicacion casilla2 = Delante(casilla1); // Delante de la anterior
+
+  // 2. Verificar que no se salgan del mapa
+  if (casilla2.f < 0 || casilla2.f >= mapaResultado.size() || 
+      casilla2.c < 0 || casilla2.c >= mapaResultado[0].size()) {
+    return false;
   }
-  return 9999; // Si se sale del mapa, devolvemos un número gigante para que no quiera ir ahí
+
+  // 3. Obtener tipos de terreno y alturas
+  char t1 = mapaResultado[casilla1.f][casilla1.c];
+  char t2 = mapaResultado[casilla2.f][casilla2.c];
+  int h0 = sensores.cota[0];
+  int h1 = mapaCotas[casilla1.f][casilla1.c];
+  int h2 = mapaCotas[casilla2.f][casilla2.c];
+
+  // 4. Reglas de Transitabilidad (No saltar sobre muros o precipicios)
+  // Nota: es_camino es tu función que acepta 'C', 'D', 'U'
+  if (!es_camino(t1) || !es_camino(t2)) return false;
+
+  // 5. Reglas de Altura (Crucial para el Ingeniero)
+  // El salto requiere que AMBOS pasos sean válidos por altura
+  int limite = tiene_zapatillas ? 2 : 1;
+  
+  bool paso1_ok = (abs(h1 - h0) <= limite);
+  bool paso2_ok = (abs(h2 - h1) <= limite);
+
+  // 6. Verificar que no haya agentes estorbando (Técnicos o Aldeanos)
+  // En sensores.agentes, el índice 2 es frente dist 1, el 6 es frente dist 2
+  if (sensores.agentes[2] != '_' || sensores.agentes[6] != '_') return false;
+
+  return (paso1_ok && paso2_ok);
 }
+
+
+*/
+
+
+
+/*
+
+
 
 // Función auxiliar para darle una nota a cada casilla (El cerebro reactivo)
 int PuntuacionCasilla(char terreno, int visitas, bool zap_necesaria)
@@ -99,7 +672,7 @@ int PuntuacionCasilla(char terreno, int visitas, bool zap_necesaria)
   if (terreno == 'U') puntos = 10000; // La meta absoluta
   else if (terreno == 'D' && !zap_necesaria) puntos = 5000; // ¡Zapatillas!
   else if (terreno == 'C' || terreno == 'S' || (terreno == 'D' && zap_necesaria)) puntos = 1000; // Transitable normal
-  else return -9999; // Muros, agua o árboles (si somos ingeniero)
+  else return -99999; // Muros, agua o árboles (si somos ingeniero)
 
   // La magia: le restamos atractivo por cada vez que la hemos pisado
   puntos -= (visitas * 100); 
@@ -122,7 +695,10 @@ int VeoCasillaInteresanteI(char i, char c, char d, int vi, int vc, int vd, bool 
   if (score_i >= score_d) return 1;
   return 3;
 }
+*/
 
+
+/*Version de superacion de 15 test
 Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores)
 {
   Action accion = IDLE;
@@ -193,6 +769,19 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_0(Sensores sensores
   last_action = accion;
   return accion;
 }
+
+*/
+
+
+
+
+
+
+
+
+
+
+
 
 
 /*
@@ -272,6 +861,92 @@ bool ComportamientoIngeniero::es_camino(unsigned char c) const
 
 
 
+
+
+
+
+
+
+/*
+
+
+int PuntuacionExploracion(char terreno, int visitas, bool tiene_zap) {
+  if (terreno == 'P' || terreno == 'M' || terreno == 'A' || terreno == 'B') return -9999;
+  
+  int puntos = 0;
+  if (terreno == 'U') puntos = 10000; // Meta
+  else if (terreno == 'D' && !tiene_zap) puntos = 8000; // Prioridad a las zapatillas
+  else if (terreno == 'C' || terreno == 'S' || terreno == 'D') puntos = 2000; // Caminos/Senderos
+  else return -9999;
+
+  // PENALIZACIÓN AGRESIVA: Cada visita resta 500 puntos.
+  // Esto obliga al agente a ir SIEMPRE a lo que tenga 0 visitas si puede.
+  puntos -= (visitas * 500); 
+  
+  return puntos;
+}
+
+
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_1(Sensores sensores) {
+  Action accion = IDLE;
+
+  // 1. Actualizar mapas y memoria
+  ActualizarMapa(sensores);
+  mapaVisitas[sensores.posF][sensores.posC]++; // Marcamos donde estamos
+
+  if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+
+  // 2. Comprobar alturas de las 3 casillas frente a nosotros
+  char i_ter = ViablePorAlturaI(sensores.superficie[1], sensores.cota[1] - sensores.cota[0], tiene_zapatillas);
+  char c_ter = ViablePorAlturaI(sensores.superficie[2], sensores.cota[2] - sensores.cota[0], tiene_zapatillas);
+  char d_ter = ViablePorAlturaI(sensores.superficie[3], sensores.cota[3] - sensores.cota[0], tiene_zapatillas);
+
+  // 3. Evitar al Técnico (lo tratamos como obstáculo insalvable)
+  if (sensores.agentes[1] == 't') i_ter = 'P';
+  if (sensores.agentes[2] == 't') c_ter = 'P';
+  if (sensores.agentes[3] == 't') d_ter = 'P';
+
+  // 4. Calcular coordenadas de las 3 casillas para ver cuántas visitas tienen
+  ubicacion actual = {sensores.posF, sensores.posC, (Orientacion)sensores.rumbo};
+  
+  // Izquierda (Giro virtual de -45º y avanzar)
+  int v_izq = ObtenerVisitasSeguro(Delante({actual.f, actual.c, (Orientacion)((actual.brujula+7)%8)}).f, 
+                                   Delante({actual.f, actual.c, (Orientacion)((actual.brujula+7)%8)}).c, mapaVisitas);
+  // Frente
+  int v_cen = ObtenerVisitasSeguro(Delante(actual).f, Delante(actual).c, mapaVisitas);
+  
+  // Derecha (Giro virtual de +45º y avanzar)
+  int v_der = ObtenerVisitasSeguro(Delante({actual.f, actual.c, (Orientacion)((actual.brujula+1)%8)}).f, 
+                                   Delante({actual.f, actual.c, (Orientacion)((actual.brujula+1)%8)}).c, mapaVisitas);
+
+  // 5. Calcular puntos de interés
+  int score_i = PuntuacionExploracion(i_ter, v_izq, tiene_zapatillas);
+  int score_c = PuntuacionExploracion(c_ter, v_cen, tiene_zapatillas);
+  int score_d = PuntuacionExploracion(d_ter, v_der, tiene_zapatillas);
+
+  // 6. Decidir acción (Prioridad: mayor puntuación. Si hay empate, preferimos frente)
+  if (score_c >= score_i && score_c >= score_d && score_c > -5000) {
+    accion = WALK;
+  } else if (score_i >= score_d && score_i > -5000) {
+    accion = TURN_SL;
+  } else if (score_d > -5000) {
+    accion = TURN_SR;
+  } else {
+    // Si todo es peligroso o está muy visitado, giramos para buscar aire nuevo
+    accion = TURN_SR;//Le he cambiado contrario q tecnico para q cada uno vaya a una direccion probar TURN_SL para ver cual funciona mejor.
+  }
+
+  last_action = accion;
+  return accion;
+}
+
+*/
+
+
+ /*Nivel 1 ANTIGUO
+ 
+ 
+
 int VeoCasillaInteresanteNivel1I(char i, char c, char d)
 {
   // Prioridad 1: Seguir de frente (c) si es Camino, Sendero, Zapatilla o Meta
@@ -346,6 +1021,17 @@ Action ComportamientoIngeniero::ComportamientoIngenieroNivel_1(Sensores sensores
   last_action = accion;
   return accion;
 }
+
+*/
+
+
+Action ComportamientoIngeniero::ComportamientoIngenieroNivel_1(Sensores sensores)
+{
+  Action accion = IDLE;
+  return accion;
+}
+
+
 
 // Niveles avanzados (Uso de búsqueda)
 /**

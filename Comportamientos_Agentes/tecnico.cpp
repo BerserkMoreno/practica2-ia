@@ -50,6 +50,280 @@ char ViablePorAlturaT(char casilla, int dif)
   else
     return 'P';
 }
+
+
+
+// =========================================================================
+// 1. FUNCIONES AYUDANTES DEL TÉCNICO (SISTEMA DE INSTANTES)
+// =========================================================================
+
+/**
+ * @brief Guarda el instante actual en la posición donde estamos.
+ */
+void ComportamientoTecnico::RegistrarVisitaT(ubicacion actual) {
+    if (mapaUltimoPaso.empty()) {
+        mapaUltimoPaso.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+    }
+    // Guardamos el "segundo" actual del reloj
+    mapaUltimoPaso[actual.f][actual.c] = instanteActual;
+}
+
+bool ComportamientoTecnico::EsCaminoLimpioT(ubicacion destino, int idx_sensor, const Sensores& sensores) {
+    char terreno = sensores.superficie[idx_sensor];
+    bool es_pisable = (terreno == 'C' || terreno == 'D' || terreno == 'U');
+    if (tiene_zapatillas && terreno == 'B') es_pisable = true; 
+    
+    if (!es_pisable) return false;
+    if (sensores.agentes[idx_sensor] != '_') return false; //Con esto marcamos que la casilla esta desocupada _ por tanto miramos si no esta desocupada
+    
+    return true;
+}
+
+bool ComportamientoTecnico::SePuedeCaminarT(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+  ubicacion destino = Delante(origen);
+    if (!EsCaminoLimpioT(destino, idx_sensor, sensores)) return false;
+    
+    int desnivel = abs(mapaCotas[destino.f][destino.c] - mapaCotas[origen.f][origen.c]);
+    return (desnivel <= 1);
+}
+
+/**
+ * @brief Evalúa la casilla basándose en cuánto tiempo hace que no pasamos.
+ */
+int ComportamientoTecnico::EvaluarLadoT(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+    if (!SePuedeCaminarT(origen, idx_sensor, sensores)) {
+        return -999999; 
+    }
+
+    ubicacion destino = Delante(origen);
+    char terreno = sensores.superficie[idx_sensor];
+    
+    int puntos = 100;
+
+    // Prioridades de misión
+    if (terreno == 'U') puntos = 10000;
+    else if (terreno == 'D' && !tiene_zapatillas) puntos = 5000;
+
+    // --- LÓGICA DE INSTANTES (FRESCURA) ---
+    // Cuanto más pequeño sea el número en mapaUltimoPaso, más tiempo hace que no vamos.
+    // Queremos que las casillas "viejas" tengan más puntos.
+    // Restamos el instante guardado: si estuvimos en el paso 10, restamos 10. 
+    // Si estuvimos en el 500, restamos 500. El de 10 ganará.
+    int ultimo_instante = mapaUltimoPaso[destino.f][destino.c];
+    puntos -= ultimo_instante; 
+
+    return puntos;
+}
+
+
+// =========================================================================
+// 2. EL CEREBRO PRINCIPAL
+// =========================================================================
+
+Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
+{
+    // Aumentamos nuestro reloj en cada decisión
+    instanteActual++;
+
+    ActualizarMapa(sensores); 
+    ubicacion posicion_actual = {sensores.posF, sensores.posC, sensores.rumbo};
+    RegistrarVisitaT(posicion_actual);
+
+    if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+    if (sensores.superficie[0] == 'U') return IDLE; 
+
+    // Proyectar coordenadas
+    ubicacion mirar_frente = posicion_actual;
+    ubicacion mirar_izq = posicion_actual; 
+    mirar_izq.brujula = (Orientacion)((posicion_actual.brujula + 7) % 8);
+    ubicacion mirar_der = posicion_actual; 
+    mirar_der.brujula = (Orientacion)((posicion_actual.brujula + 1) % 8);
+
+    // Puntuar
+    int nota_izq    = EvaluarLadoT(mirar_izq,    1, sensores);
+    int nota_frente = EvaluarLadoT(mirar_frente, 2, sensores);
+    int nota_der    = EvaluarLadoT(mirar_der,    3, sensores);
+
+    // Encontrar al ganador
+    int ganador = nota_frente;
+    if (nota_izq > ganador) ganador = nota_izq;
+    if (nota_der > ganador) ganador = nota_der;
+
+    Action accion_elegida = IDLE;
+
+    if (ganador <= -999999) {
+        accion_elegida = TURN_SL;
+    } 
+    else if (ganador == nota_frente) {
+        accion_elegida = WALK;
+    } 
+    else if (ganador == nota_izq) {
+        accion_elegida = TURN_SL;
+    } 
+    else {
+        accion_elegida = TURN_SR;
+    }
+
+    last_action = accion_elegida;
+    return accion_elegida;
+}
+
+
+/*
+
+// =========================================================================
+// 1. FUNCIONES AYUDANTES DEL TÉCNICO
+// =========================================================================
+
+void ComportamientoTecnico::RegistrarVisitaT(ubicacion actual) {
+    if (mapaVisitas.empty()) {
+        mapaVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+    }
+    mapaVisitas[actual.f][actual.c]++;
+}
+
+bool ComportamientoTecnico::EsCaminoLimpioT(ubicacion destino, int idx_sensor, const Sensores& sensores) {
+    char terreno = sensores.superficie[idx_sensor];
+    
+    // El Técnico puede pisar Caminos, Zapatillas, Metas y... ¡Bosques si tiene zapatillas!
+    bool es_pisable = (terreno == 'C' || terreno == 'D' || terreno == 'U');
+    if (tiene_zapatillas && terreno == 'B') es_pisable = true; 
+    
+    if (!es_pisable) return false;
+    
+    // Si hay un aldeano 't' o el propio ingeniero 'i' bloqueando, no es pisable
+    if (sensores.agentes[idx_sensor] != '_') return false;
+    
+    return true;
+}
+
+bool ComportamientoTecnico::SePuedeCaminarT(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+    ubicacion destino = Delante(origen);
+
+    if (!EsCaminoLimpioT(destino, idx_sensor, sensores)) return false;
+    
+    // El técnico NUNCA puede superar un desnivel mayor a 1
+    int desnivel = abs(mapaCotas[destino.f][destino.c] - mapaCotas[origen.f][origen.c]);
+    if (desnivel > 1) return false;
+
+    return true;
+}
+
+int ComportamientoTecnico::EvaluarLadoT(ubicacion origen, int idx_sensor, const Sensores& sensores) {
+    // Si físicamente no puedo ir (muro, precipicio o Ingeniero bloqueando), devuelvo la peor nota posible
+    if (!SePuedeCaminarT(origen, idx_sensor, sensores)) {
+        return -999999; // Usamos un número exageradamente bajo
+    }
+
+    ubicacion destino = Delante(origen);
+    char terreno = sensores.superficie[idx_sensor];
+    
+    int puntos = 100; // Puntuación base
+
+    // Prioridades
+    if (terreno == 'U') puntos = 10000;
+    else if (terreno == 'D' && !tiene_zapatillas) puntos = 5000;
+
+    // Aplicamos la memoria (Aburrimiento): restamos puntos si ya la hemos pisado
+    if (destino.f >= 0 && destino.f < mapaVisitas.size() && destino.c >= 0 && destino.c < mapaVisitas[0].size()) {
+        puntos -= (mapaVisitas[destino.f][destino.c] * 15);
+    }
+
+    return puntos;
+}
+
+// =========================================================================
+// 2. EL CEREBRO PRINCIPAL DEL TÉCNICO
+// =========================================================================
+
+Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
+{
+    ActualizarMapa(sensores); 
+    
+    ubicacion posicion_actual = {sensores.posF, sensores.posC, sensores.rumbo};
+    RegistrarVisitaT(posicion_actual);
+
+    // Actualizar Zapatillas y Victoria
+    if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+    if (sensores.superficie[0] == 'U') return IDLE; 
+
+    // OJO: Ya no ponemos el `if (sensores.agentes[2] == 'i') return IDLE;`. 
+    // Ahora, si el Ingeniero está delante, la función `EsCaminoLimpioT` lo detecta, 
+    // le pone nota -999999, y el Técnico decide girar de forma natural para esquivarlo.
+
+    // Proyectar coordenadas de visión
+    ubicacion mirar_frente = posicion_actual;
+    
+    ubicacion mirar_izq = posicion_actual; 
+    mirar_izq.brujula = (Orientacion)((posicion_actual.brujula + 7) % 8);
+    
+    ubicacion mirar_der = posicion_actual; 
+    mirar_der.brujula = (Orientacion)((posicion_actual.brujula + 1) % 8);
+
+    // Puntuar las 3 opciones
+    int nota_izq    = EvaluarLadoT(mirar_izq,    1, sensores);
+    int nota_frente = EvaluarLadoT(mirar_frente, 2, sensores);
+    int nota_der    = EvaluarLadoT(mirar_der,    3, sensores);
+
+    // Comparar y elegir al ganador
+    int ganador = nota_frente;
+    if (nota_izq > ganador) ganador = nota_izq;
+    if (nota_der > ganador) ganador = nota_der;
+
+    Action accion_elegida = IDLE;
+
+    // Fíjate que ahora comparamos con -999999
+    if (ganador <= -999999) {
+        // Callejón sin salida total, giramos para buscar alternativa
+        accion_elegida = TURN_SL;
+    } 
+    else if (ganador == nota_frente) {
+        accion_elegida = WALK;
+    } 
+    else if (ganador == nota_izq) {
+        accion_elegida = TURN_SL;
+    } 
+    else {
+        accion_elegida = TURN_SL;
+    }
+
+    last_action = accion_elegida;
+    return accion_elegida;
+}
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*ANTIGUA
 
 int VeoCasillaInteresanteT(char i, char c, char d)
@@ -73,6 +347,20 @@ int VeoCasillaInteresanteT(char i, char c, char d)
 */
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+//17 NIVELES
+/*
 // Devuelve las visitas de una casilla de forma segura sin salirse de la matriz
 int ObtenerVisitasSeguroT(int f, int c, const vector<vector<int>>& matrizVisitas)
 {
@@ -121,6 +409,7 @@ int VeoCasillaInteresanteT(char i, char c, char d, int vi, int vc, int vd, bool 
 
 
 
+Version 15 test
 Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
 {
   Action accion = IDLE;
@@ -190,7 +479,7 @@ Action ComportamientoTecnico::ComportamientoTecnicoNivel_0(Sensores sensores)
   last_action = accion;
   return accion;
 }
-
+*/
 
 
 
@@ -271,6 +560,123 @@ bool ComportamientoTecnico::es_camino(unsigned char c) const
  */
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Función de puntuación de exploración específica para el TÉCNICO
+int PuntuacionExploracionT(char terreno, int visitas, bool tiene_zap) {
+  // Peculiaridad: El Técnico NO entra en Agua 'A', ni Muros 'M'. 
+  // Solo entra en Bosque 'B' si tiene zapatillas.
+  if (terreno == 'P' || terreno == 'M' || terreno == 'A') return -9999;
+  if (terreno == 'B' && !tiene_zap) return -9999;
+  
+  int puntos = 0;
+  if (terreno == 'U') puntos = 10000; 
+  else if (terreno == 'D' && !tiene_zap) puntos = 8000; 
+  else if (terreno == 'C' || terreno == 'S' || (terreno == 'B' && tiene_zap) || (terreno == 'D' && tiene_zap)) puntos = 1000; 
+
+  // PENALIZACIÓN AGRESIVA: 500 puntos menos por cada vez que hayamos pasado.
+  // Esto le obliga a buscar casillas con 0 visitas.
+  puntos -= (visitas * 500); 
+  
+  return puntos;
+}
+
+
+
+
+
+Action ComportamientoTecnico::ComportamientoTecnicoNivel_1(Sensores sensores) {
+  Action accion = IDLE;
+/*
+  // 1. Actualizar memoria y marcar rastro
+  ActualizarMapa(sensores);
+  mapaVisitas[sensores.posF][sensores.posC]++; 
+
+  if (sensores.superficie[0] == 'D') tiene_zapatillas = true;
+
+  // 2. REGLA DE ORO: Si el Ingeniero está de frente, me paro para dejarle pasar
+  if (sensores.agentes[2] == 'i') {
+    last_action = IDLE;
+    return IDLE;
+  }
+
+  // 3. Altura (Peculiaridad: el técnico siempre usa ViablePorAlturaT que limita a 1)
+  char i_ter = ViablePorAlturaT(sensores.superficie[1], sensores.cota[1] - sensores.cota[0]);
+  char c_ter = ViablePorAlturaT(sensores.superficie[2], sensores.cota[2] - sensores.cota[0]);
+  char d_ter = ViablePorAlturaT(sensores.superficie[3], sensores.cota[3] - sensores.cota[0]);
+
+  // 4. Detectar al Ingeniero en los laterales para no chocar
+  if (sensores.agentes[1] == 'i') i_ter = 'P';
+  if (sensores.agentes[3] == 'i') d_ter = 'P';
+
+  // 5. Calcular coordenadas para consultar visitas (Usando solo 3 sensores frontales)
+  ubicacion actual = {sensores.posF, sensores.posC, (Orientacion)sensores.rumbo};
+  
+  int v_izq = ObtenerVisitasSeguroT(Delante({actual.f, actual.c, (Orientacion)((actual.brujula+7)%8)}).f, 
+                                    Delante({actual.f, actual.c, (Orientacion)((actual.brujula+7)%8)}).c, mapaVisitas);
+  int v_cen = ObtenerVisitasSeguroT(Delante(actual).f, Delante(actual).c, mapaVisitas);
+  int v_der = ObtenerVisitasSeguroT(Delante({actual.f, actual.c, (Orientacion)((actual.brujula+1)%8)}).f, 
+                                    Delante({actual.f, actual.c, (Orientacion)((actual.brujula+1)%8)}).c, mapaVisitas);
+
+  // 6. Evaluar con los pesos del Técnico
+  int score_i = PuntuacionExploracionT(i_ter, v_izq, tiene_zapatillas);
+  int score_c = PuntuacionExploracionT(c_ter, v_cen, tiene_zapatillas);
+  int score_d = PuntuacionExploracionT(d_ter, v_der, tiene_zapatillas);
+
+  // 7. Decidir acción (Prioridad: Frente > Izquierda > Derecha)
+  if (score_c >= score_i && score_c >= score_d && score_c > -5000) {
+    accion = WALK;
+  } else if (score_i >= score_d && score_i > -5000) {
+    accion = TURN_SL;
+  } else if (score_d > -5000) {
+    accion = TURN_SR;
+  } else {
+    // Si no hay salida o todo está muy pisado, giramos para buscar nuevas rutas
+    accion = TURN_SL;
+  }
+
+  last_action = accion;
+  */
+  return accion;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ /*ANTIGUO NIVEL 1
 int VeoCasillaInteresanteNivel1T(char i, char c, char d, bool zap)
 {
   // Prioridad 1: Frente (c)
@@ -341,6 +747,19 @@ Action ComportamientoTecnico::ComportamientoTecnicoNivel_1(Sensores sensores)
   last_action = accion;
   return accion;
 }
+
+*/
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * @brief Comportamiento del técnico para el Nivel 2.
