@@ -5,6 +5,7 @@
 #include <time.h>
 #include <thread>
 #include <list>
+#include <map>
 
 #include "comportamientos/comportamiento.hpp"
 
@@ -18,6 +19,68 @@
  * Esta clase implementa el comportamiento del agente Técnico en el mundo Belkan.
  * El técnico colabora con el ingeniero para resolver el problema de instalación de tuberías
  */
+
+struct EstadoT
+{
+  ubicacion site;
+  bool zapatillas;
+
+  bool operator==(const EstadoT &st) const
+  {
+    return site == st.site and zapatillas == st.zapatillas;
+  }
+
+  bool operator<(const EstadoT &st) const
+  {
+    if (site.f != st.site.f)
+      return site.f < st.site.f;
+    if (site.c != st.site.c)
+      return site.c < st.site.c;
+    if (site.brujula != st.site.brujula)
+      return site.brujula < st.site.brujula;
+    return zapatillas < st.zapatillas;
+  }
+};
+
+struct NodoT
+{
+  EstadoT estado;
+  list<Action> secuencia;
+  bool operator==(const NodoT &node) const
+  {
+    return estado == node.estado;
+  }
+  bool operator<(const NodoT &node) const
+  {
+    if (estado.site.f < node.estado.site.f)
+      return true;
+    else if (estado.site.f == node.estado.site.f and estado.site.c < node.estado.site.c)
+      return true;
+    else if (estado.site.f == node.estado.site.f and estado.site.c == node.estado.site.c and estado.site.brujula < node.estado.site.brujula)
+      return true;
+    else if (estado.site.f == node.estado.site.f and estado.site.c == node.estado.site.c and estado.site.brujula == node.estado.site.brujula and estado.zapatillas < node.estado.zapatillas)
+      return true;
+    else
+      return false;
+  }
+};
+
+struct NodoAStarT
+{
+  EstadoT estado;
+  list<Action> secuencia;
+  int g;
+  int h;
+
+  int f() const { return g + h; }
+
+  bool operator<(const NodoAStarT &otro) const
+  {
+    if (f() != otro.f())
+      return f() > otro.f(); 
+    return g < otro.g;    
+  }
+};
 
 class ComportamientoTecnico : public Comportamiento
 {
@@ -37,9 +100,13 @@ public:
     tiene_zapatillas = false;
     giro45Izq = 0;
 
-     instanteActual = 0; 
+    instanteActual = 0;
 
-    mapaVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+    mapaUltimoPaso.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+    nVisitas.assign(mapaResultado.size(), vector<int>(mapaResultado[0].size(), 0));
+
+    n6_estado = 0;
+    n6T = false;
   }
 
   /**
@@ -51,6 +118,19 @@ public:
                         std::vector<std::vector<unsigned char>> mapaC) : Comportamiento(mapaR, mapaC)
   {
     // Inicializar Variables de Estado
+    hayPlan = false;
+    tiene_zapatillas = false;
+
+    n5_estado = 0;
+    n5_target_f = -1;
+    n5_target_c = -1;
+
+    n5_espera = 0;
+    n5_obs_f = -1;
+    n5_obs_c = -1;
+
+    n5_espera_path = 0; // Tiempo de espera para evitar bloqueos del algoritmo
+    n6T = false;
   }
 
   ComportamientoTecnico(const ComportamientoTecnico &comport) : Comportamiento(comport) {}
@@ -88,6 +168,8 @@ public:
    * @return Acción a realizar.
    */
   Action ComportamientoTecnicoNivel_1(Sensores sensores);
+
+  Action ComportamientoTecnicoNivel_E(Sensores sensores);
 
   /**
    * @brief Comportamiento del técnico para el Nivel 2.
@@ -197,16 +279,57 @@ private:
   bool tiene_zapatillas;
   int giro45Izq;
 
-  vector<vector<int>> mapaVisitas;
+  int instanteActual;
+  vector<vector<int>> mapaUltimoPaso;
+  vector<vector<int>> nVisitas;
 
-    void RegistrarVisitaT(ubicacion actual);
-    bool EsCaminoLimpioT(ubicacion destino, int idx_sensor, const Sensores& sensores);
-    bool SePuedeCaminarT(ubicacion origen, int idx_sensor, const Sensores& sensores);
-    int EvaluarLadoT(ubicacion origen, int idx_sensor, const Sensores& sensores);
+  // Funciones para el Nivel 0
+  void RegistrarVisitaT(ubicacion actual);
+  bool EsCaminoLimpioT(ubicacion destino, int idx_sensor, const Sensores &sensores);
+  bool SePuedeCaminarT(ubicacion origen, int idx_sensor, const Sensores &sensores);
+  int EvaluarLadoT(ubicacion origen, int idx_sensor, const Sensores &sensores);
 
-       int instanteActual; // El "reloj" del robot
-    vector<vector<int>> mapaUltimoPaso; // Guarda el instante de la última visita
-  
+  // Funciones para el Nivel 1
+  bool es_transitable_nivel_1_T(unsigned char c) const;
+  bool EsCaminoLimpioN1_T(ubicacion destino, int idx_sensor, const Sensores &sensores);
+  bool SePuedeCaminarN1_T(ubicacion origen, int idx_sensor, const Sensores &sensores);
+  int EvaluarLadoN1_T(ubicacion origen, int idx_sensor, const Sensores &sensores);
+  int ContarDesconocidosT(const ubicacion &centro);
+
+  // Nivel E
+  bool hayPlan;      // Indica si hay una plan que ejecutar
+  list<Action> plan; // Almacena el plan a realizar.
+  list<Action> B_Anchura(const EstadoT &inicio, const EstadoT &final,
+                         const vector<vector<unsigned char>> &terreno,
+                         const vector<vector<unsigned char>> &altura);
+
+  list<Action> B_Anchura_V2(const EstadoT &inicio, const EstadoT &final,
+                            const vector<vector<unsigned char>> &terreno,
+                            const vector<vector<unsigned char>> &altura);
+
+  list<Action> A_Star_Nivel3(const EstadoT &inicio, const EstadoT &final,
+                             const vector<vector<unsigned char>> &terreno,
+                             const vector<vector<unsigned char>> &altura);
+
+  // VARIABLES Y MÉTODOS PARA EL NIVEL 5 (TÉCNICO)
+
+  int n5_estado = 0;
+  int n5_target_f = -1;
+  int n5_target_c = -1;
+  std::list<Action> n5_plan_movimiento;
+
+  Action MoverA_Tecnico(int f, int c, const Sensores &sensores);
+
+  int n5_espera = 0;
+  int n5_obs_f = -1;
+  int n5_obs_c = -1;
+
+  int n5_espera_path = 0; // Tiempo de espera para evitar bloqueos del algoritmo
+
+  // VARIABLES Y MÉTODOS PARA EL NIVEL 6 (TÉCNICO)
+
+  int n6_estado = 0;
+  bool n6T;
 };
 
 #endif
